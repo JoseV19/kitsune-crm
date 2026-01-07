@@ -38,14 +38,14 @@ export function LoginPage({ onLogin }: LoginProps) {
         {/* --- LOGO PRINCIPAL --- */}
         <div className="flex flex-col items-center mb-8">
             <div className="w-full max-w-[320px] mb-4 drop-shadow-[0_0_25px_rgba(45,212,191,0.3)]">
-                {/* Ajustamos la imagen para que se mezcle bien */}
+              
                 <img src="/logo-kiriko.png" alt="Kitsune CRM" className="w-full h-auto object-contain" />
             </div>
             <p className="text-slate-500 text-xs tracking-[0.3em] uppercase animate-pulse">Sistema de Acceso Seguro</p>
         </div>
 
         <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-8 rounded-sm shadow-2xl relative overflow-hidden">
-            {/* Pequeña decoración de luz arriba del form */}
+            
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-kiriko-teal to-transparent opacity-50"></div>
             
             <form onSubmit={handleSubmit} className="space-y-6">

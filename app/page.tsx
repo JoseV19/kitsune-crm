@@ -64,12 +64,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-kiriko-900 text-white font-sans selection:bg-kiriko-teal selection:text-black">
       
-      {/* --- HEADER EXPANDIDO "MODO CINE" --- */}
+      
       <header className="relative w-full h-56 mb-8 overflow-hidden group border-b border-kiriko-teal/50 shadow-[0_0_40px_rgba(45,212,191,0.2)]">
         
-        {/* 1. FONDO GIGANTE: LA IMAGEN DEL LOGO ESTIRADA */}
+      
         <div className="absolute inset-0 z-0">
-            {/* Imagen estirada (object-cover) para ocupar TODO el espacio */}
+            
             <img 
                 src="/logo-kiriko.png" 
                 alt="Background Texture" 
@@ -83,13 +83,13 @@ export default function Home() {
             <div className="absolute inset-0 bg-kiriko-teal/10 mix-blend-overlay"></div>
         </div>
         
-        {/* 2. TEXTURA SCANLINE (Detalle técnico) */}
+        
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.2)_1px,transparent_1px)] bg-[size:4px_4px] z-0 pointer-events-none opacity-50"></div>
 
-        {/* 3. CONTENIDO DEL HEADER */}
+       
         <div className="relative z-10 flex justify-between items-end px-10 pb-8 h-full w-full">
             
-            {/* IZQUIERDA: LOGO FLOTANTE NÍTIDO (CON ENLACE) */}
+            
             <div className="flex items-center gap-6">
               <a 
                 href="https://studios.zionak.com/es" 
@@ -98,7 +98,7 @@ export default function Home() {
                 className="w-72 drop-shadow-[0_0_30px_rgba(45,212,191,0.9)] hover:scale-105 transition-transform duration-300 cursor-pointer block"
                 title="Ir a Zionak Studios"
               >
-                 {/* El logo principal superpuesto */}
+                 
                  <img 
                    src="/logo-kiriko.png" 
                    alt="Kitsune CRM" 
@@ -113,7 +113,7 @@ export default function Home() {
               </div>
             </div>
             
-            {/* DERECHA: PERFIL */}
+          
             <div className="flex items-center gap-6 pb-2">
                 <div 
                     className="flex items-center gap-4 cursor-pointer group/profile bg-black/60 backdrop-blur-md p-3 pr-6 rounded-full border border-kiriko-teal/50 hover:border-kiriko-teal transition-all hover:bg-black/80 shadow-lg" 
@@ -149,9 +149,9 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 w-full h-[3px] bg-gradient-to-r from-kiriko-teal via-white to-kiriko-teal opacity-90 shadow-[0_0_20px_#2dd4bf] animate-pulse"></div>
       </header>
 
-      {/* --- CONTENIDO PRINCIPAL --- */}
+     
      <div className="px-10 pb-10">
-         {/* AHORA PASAMOS EL NOMBRE DEL USUARIO AL TABLERO */}
+        
          <KanbanBoard currentUser={user.name} />
       </div>
       <ProfileModal 

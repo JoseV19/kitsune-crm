@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CustomCursor } from "@/components/CustomCursor"; 
-import { SakuraBackground } from "@/components/SakuraBackground"; // <--- 1. IMPORTAR
-
+import { SakuraBackground } from "@/components/SakuraBackground"; 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Kitsune CRM",
-  description: "Pipeline de Ventas Corporativo",
   icons: {
     icon: '/logo-kiriko.png',
   },

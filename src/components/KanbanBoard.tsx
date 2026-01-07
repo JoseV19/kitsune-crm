@@ -64,12 +64,12 @@ export default function KanbanBoard({ currentUser }: KanbanBoardProps) {
             .single();
 
         if (data && data.data) {
-            // MIGRACIÓN: Aseguramos que 'files' nunca sea undefined
+            
             const sanitizedData = (data.data as Column[]).map(col => ({
                 ...col,
                 tasks: col.tasks.map(task => ({
                     ...task,
-                    files: task.files || [] // <--- ESTO EVITA EL ERROR AL CARGAR
+                    files: task.files || [] 
                 }))
             }));
             setColumns(sanitizedData);
@@ -101,7 +101,7 @@ export default function KanbanBoard({ currentUser }: KanbanBoardProps) {
 
   }, [columns, isLoaded, currentUser]);
 
-  // --- LOGICA DRAG & DROP ---
+  
   const handleDragStart = (e: React.DragEvent, taskId: string, sourceColId: string) => {
     e.dataTransfer.setData('taskId', taskId);
     e.dataTransfer.setData('sourceColId', sourceColId);
@@ -140,7 +140,7 @@ export default function KanbanBoard({ currentUser }: KanbanBoardProps) {
       priority: 'Medium',
       description: "",
       dueDate: "",
-      files: [] // <--- Inicializamos siempre como array vacío
+      files: [] 
     };
     const newColumns = columns.map(col => col.id === colId ? { ...col, tasks: [...col.tasks, newTask] } : col);
     setColumns(newColumns);
@@ -160,7 +160,7 @@ export default function KanbanBoard({ currentUser }: KanbanBoardProps) {
     setEditingTask(null);
   };
 
-  // --- 3. SUBIDA DE ARCHIVOS (CORREGIDO) ---
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || !editingTask) return;
