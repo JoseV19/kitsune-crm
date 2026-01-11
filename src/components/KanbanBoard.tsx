@@ -1,345 +1,300 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/SupabaseClient'; 
-import { Plus, Trash2, Edit, X, Save, DollarSign, Building, Tag, Paperclip, FileText, Image as ImageIcon, UploadCloud, Calendar, AlignLeft, Flag, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Building, Tag, Paperclip, Flag, Loader2, X, Upload, FileText } from 'lucide-react';
+import { Deal, DealStage } from '@/types/crm';
 
-// --- TIPOS DE DATOS ---
-type Priority = 'Low' | 'Medium' | 'High';
+const STAGE_CONFIG: Record<DealStage, { title: string; color: string }> = {
+  prospect:     { title: 'PROSPECTOS', color: 'bg-emerald-400' },
+  qualified:    { title: 'CALIFICADOS', color: 'bg-teal-400' },
+  contacted:    { title: 'CONTACTADOS', color: 'bg-cyan-400' },
+  meeting:      { title: 'REUNIÓN / DEMO', color: 'bg-blue-400' },
+  negotiation:  { title: 'NEGOCIACIÓN', color: 'bg-violet-400' },
+  won:          { title: 'GANADOS 💰', color: 'bg-green-500' },
+  lost:         { title: 'PERDIDOS', color: 'bg-red-500' }
+};
 
-interface Attachment {
-  id: string;
-  name: string;
-  size: string;
-  type: string;
-  url: string;
-  date: string;
-}
+const STAGE_ORDER: DealStage[] = ['prospect', 'qualified', 'meeting', 'negotiation', 'won'];
 
-interface Task {
-  id: string;
-  title: string;
-  company: string;
-  value: number;
+interface Attachment { id: string; name: string; size: number; type: string; url: string; created_at: string; }
+
+interface KanbanTask extends Deal {
+  files: Attachment[]; 
   tags: string[];
-  priority: Priority;
-  description: string;
-  dueDate: string;
-  files: Attachment[];
+  client_data?: { name: string; logo_url?: string } | null;
 }
 
-interface Column {
-  id: string;
-  title: string;
-  tasks: Task[];
-  color: string;
+interface Column { id: DealStage; title: string; color: string; tasks: KanbanTask[]; }
+
+interface KanbanBoardProps { 
+  currentUser: string; 
+  onOpenClient: (clientId: string) => void; 
+  searchTerm?: string;
 }
 
-const DEFAULT_COLUMNS: Column[] = [
-  { id: 'prospectos', title: 'PROSPECTOS', color: 'bg-emerald-400', tasks: [] },
-  { id: 'negociacion', title: 'NEGOCIACIÓN', color: 'bg-blue-400', tasks: [] },
-  { id: 'ganados', title: 'GANADOS', color: 'bg-red-400', tasks: [] }
-];
-
-interface KanbanBoardProps {
-    currentUser: string; 
-}
-
-export default function KanbanBoard({ currentUser }: KanbanBoardProps) {
-  const [columns, setColumns] = useState<Column[]>(DEFAULT_COLUMNS);
+export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = '' }: KanbanBoardProps) {
+  const [columns, setColumns] = useState<Column[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [editingTask, setEditingTask] = useState<{ task: KanbanTask } | null>(null);
   
-  const [editingTask, setEditingTask] = useState<{ colId: string, task: Task } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tempTag, setTempTag] = useState('');
+  const [uploadingFile, setUploadingFile] = useState(false);
 
-  // --- 1. CARGAR DATOS (CON MIGRACIÓN DE SEGURIDAD) ---
-  useEffect(() => {
-    const fetchBoard = async () => {
-        const { data, error } = await supabase
-            .from('boards')
-            .select('data')
-            .eq('user_id', currentUser)
-            .single();
+  const fetchDeals = async () => {
+    const { data, error } = await supabase
+      .from('deals')
+      .select('*, clients (id, name, logo_url)')
+      .order('created_at', { ascending: false });
 
-        if (data && data.data) {
-            
-            const sanitizedData = (data.data as Column[]).map(col => ({
-                ...col,
-                tasks: col.tasks.map(task => ({
-                    ...task,
-                    files: task.files || [] 
-                }))
-            }));
-            setColumns(sanitizedData);
-        } else {
-            setColumns(DEFAULT_COLUMNS);
+    if (error) { console.error("Error:", error); return; }
+
+    const newColumns: Column[] = STAGE_ORDER.map(stage => ({ 
+        id: stage, 
+        title: STAGE_CONFIG[stage].title, 
+        color: STAGE_CONFIG[stage].color, 
+        tasks: [] 
+    }));
+
+    (data as any[]).forEach(deal => {
+        const colIndex = newColumns.findIndex(c => c.id === deal.stage);
+        if (colIndex !== -1) {
+            newColumns[colIndex].tasks.push({ 
+                ...deal, 
+                files: Array.isArray(deal.files) ? deal.files : [], 
+                tags: Array.isArray(deal.tags) ? deal.tags : ['Nuevo'], 
+                client_data: deal.clients 
+            });
         }
-        setIsLoaded(true);
-    };
-
-    fetchBoard();
-  }, [currentUser]);
-
-  // --- 2. AUTO-GUARDADO ---
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    const saveBoard = async () => {
-        setIsSaving(true);
-        const { error } = await supabase
-            .from('boards')
-            .upsert({ user_id: currentUser, data: columns }, { onConflict: 'user_id' });
-        
-        if (error) console.error('Error guardando:', error);
-        setTimeout(() => setIsSaving(false), 500);
-    };
-
-    const timeout = setTimeout(saveBoard, 1000);
-    return () => clearTimeout(timeout);
-
-  }, [columns, isLoaded, currentUser]);
-
-  
-  const handleDragStart = (e: React.DragEvent, taskId: string, sourceColId: string) => {
-    e.dataTransfer.setData('taskId', taskId);
-    e.dataTransfer.setData('sourceColId', sourceColId);
-    e.dataTransfer.effectAllowed = 'move';
+    });
+    setColumns(newColumns); 
+    setIsLoaded(true); 
   };
 
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  useEffect(() => { fetchDeals(); }, []);
 
-  const handleDrop = (e: React.DragEvent, targetColId: string) => {
+  // Lógica de Etiquetas
+  const handleAddTag = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && tempTag.trim() && editingTask) {
+          e.preventDefault();
+          const newTags = [...(editingTask.task.tags || []), tempTag.trim()];
+          setEditingTask({ ...editingTask, task: { ...editingTask.task, tags: newTags } });
+          setTempTag('');
+      }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+      if (!editingTask) return;
+      const newTags = editingTask.task.tags.filter(t => t !== tagToRemove);
+      setEditingTask({ ...editingTask, task: { ...editingTask.task, tags: newTags } });
+  };
+
+  // Lógica de Archivos
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files || !e.target.files[0] || !editingTask) return;
+      setUploadingFile(true);
+      const file = e.target.files[0];
+      const fileName = `${editingTask.task.id}/${Date.now()}_${file.name}`;
+
+      try {
+          const { error: uploadError } = await supabase.storage.from('deal_attachments').upload(fileName, file);
+          if (uploadError) throw uploadError;
+          const { data: { publicUrl } } = supabase.storage.from('deal_attachments').getPublicUrl(fileName);
+          const newFile: Attachment = { id: fileName, name: file.name, size: file.size, type: file.type, url: publicUrl, created_at: new Date().toISOString() };
+          const newFiles = [...(editingTask.task.files || []), newFile];
+          setEditingTask({ ...editingTask, task: { ...editingTask.task, files: newFiles } });
+      } catch (error: any) {
+          alert('Error subiendo archivo: ' + error.message);
+      } finally {
+          setUploadingFile(false);
+      }
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+      if (!editingTask) return;
+      const newFiles = editingTask.task.files.filter(f => f.id !== fileId);
+      setEditingTask({ ...editingTask, task: { ...editingTask.task, files: newFiles } });
+  };
+
+  // Drag & Drop
+  const handleDragStart = (e: React.DragEvent, taskId: string, sourceColId: string) => { e.dataTransfer.setData('taskId', taskId); e.dataTransfer.setData('sourceColId', sourceColId); };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
+  const handleDrop = async (e: React.DragEvent, targetStage: DealStage) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
-    const sourceColId = e.dataTransfer.getData('sourceColId');
-    if (!taskId || !sourceColId || sourceColId === targetColId) return;
+    const sourceStage = e.dataTransfer.getData('sourceColId') as DealStage;
+    if (!taskId || sourceStage === targetStage) return;
 
-    const sourceCol = columns.find(c => c.id === sourceColId);
-    const targetCol = columns.find(c => c.id === targetColId);
-    const task = sourceCol?.tasks.find(t => t.id === taskId);
-
-    if (sourceCol && targetCol && task) {
-      const newColumns = columns.map(col => {
-        if (col.id === sourceColId) return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
-        if (col.id === targetColId) return { ...col, tasks: [...col.tasks, task] };
-        return col;
-      });
-      setColumns(newColumns);
-    }
-  };
-
-  const addTask = (colId: string) => {
-    const newTask: Task = {
-      id: Date.now().toString(),
-      title: "Nueva Misión",
-      company: "",
-      value: 0,
-      tags: ['Web'], 
-      priority: 'Medium',
-      description: "",
-      dueDate: "",
-      files: [] 
-    };
-    const newColumns = columns.map(col => col.id === colId ? { ...col, tasks: [...col.tasks, newTask] } : col);
+    const sourceColIdx = columns.findIndex(c => c.id === sourceStage);
+    const targetColIdx = columns.findIndex(c => c.id === targetStage);
+    const taskIndex = columns[sourceColIdx].tasks.findIndex(t => t.id === taskId);
+    const task = columns[sourceColIdx].tasks[taskIndex];
+    
+    const newColumns = [...columns];
+    newColumns[sourceColIdx].tasks.splice(taskIndex, 1);
+    newColumns[targetColIdx].tasks.push({ ...task, stage: targetStage });
     setColumns(newColumns);
-    setEditingTask({ colId, task: newTask });
+    
+    setIsSaving(true);
+    await supabase.from('deals').update({ stage: targetStage }).eq('id', taskId);
+    if (task.client_id) {
+        const oldS = STAGE_CONFIG[sourceStage].title; const newS = STAGE_CONFIG[targetStage].title;
+        await supabase.from('client_activities').insert([{ client_id: task.client_id, type: 'system', content: `🔄 Cambio de etapa: De "${oldS}" a "${newS}"`, author_name: 'Sistema 🤖' }]);
+    }
+    setIsSaving(false);
   };
 
-  const deleteTask = (colId: string, taskId: string) => {
-      if(!confirm("¿Eliminar misión?")) return;
-      setColumns(columns.map(col => col.id === colId ? { ...col, tasks: col.tasks.filter(t => t.id !== taskId) } : col));
-      if (editingTask?.task.id === taskId) setEditingTask(null);
+  const addTask = async (stage: DealStage) => {
+    const tempTitle = prompt("Título de la oportunidad:"); if (!tempTitle) return;
+    setIsSaving(true);
+    const { data } = await supabase.from('deals').insert([{ title: tempTitle, stage, value: 0, currency: 'GTQ', priority: 'medium' }]).select().single();
+    if (data) { fetchDeals(); }
+    setIsSaving(false);
   };
 
-  const saveTaskLocal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTask) return;
-    setColumns(columns.map(col => col.id === editingTask.colId ? { ...col, tasks: col.tasks.map(t => t.id === editingTask.task.id ? editingTask.task : t) } : col));
-    setEditingTask(null);
+  const saveTaskLocal = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editingTask) return; setIsSaving(true);
+    const { id, title, value, priority, expected_close_date, files, tags } = editingTask.task;
+    await supabase.from('deals').update({ title, value, priority, expected_close_date, files, tags }).eq('id', id);
+    fetchDeals(); setEditingTask(null); setIsSaving(false);
   };
 
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || !editingTask) return;
-
-      setIsUploading(true);
-      const newAttachments: Attachment[] = [];
-
-      for (const file of Array.from(files)) {
-          const fileName = `${currentUser}/${Date.now()}_${file.name.replace(/\s/g, '_')}`;
-          
-          const { data, error } = await supabase.storage
-              .from('attachments')
-              .upload(fileName, file);
-
-          if (error) {
-              console.error('Error subiendo archivo:', error);
-              alert('Error al subir archivo a la nube');
-              continue;
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-              .from('attachments')
-              .getPublicUrl(fileName);
-
-          newAttachments.push({
-              id: fileName,
-              name: file.name,
-              size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-              type: file.type.split('/')[1] || 'unknown',
-              url: publicUrl,
-              date: new Date().toLocaleDateString()
-          });
-      }
-
-      // --- AQUÍ ESTÁ EL FIX ---
-      // Usamos (editingTask.task.files || []) para evitar el error "not iterable"
-      const currentFiles = editingTask.task.files || [];
-      
-      setEditingTask({
-          ...editingTask,
-          task: { 
-              ...editingTask.task, 
-              files: [...currentFiles, ...newAttachments] 
-          }
-      });
-      setIsUploading(false);
-  };
-
-  const removeFile = (fileId: string) => {
+  const handleDeleteDeal = async () => {
       if (!editingTask) return;
-      const currentFiles = editingTask.task.files || [];
-      setEditingTask({
-          ...editingTask,
-          task: { ...editingTask.task, files: currentFiles.filter(f => f.id !== fileId) }
-      });
+      if (!window.confirm("¿Eliminar tarjeta?")) return;
+      setIsSaving(true);
+      await supabase.from('deals').delete().eq('id', editingTask.task.id);
+      fetchDeals(); setEditingTask(null); setIsSaving(false);
   };
 
-  const getPriorityColor = (p: Priority) => {
-      switch(p) {
-          case 'High': return 'text-red-500';
-          case 'Medium': return 'text-yellow-500';
-          case 'Low': return 'text-slate-500';
-          default: return 'text-slate-500';
-      }
-  };
+  const formatMoney = (amount: number, currency: string) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: currency || 'GTQ' }).format(amount);
 
-  if (!isLoaded) return <div className="text-kiriko-teal animate-pulse">Sincronizando con Zionak Cloud...</div>;
+  if (!isLoaded) return <div className="text-kiriko-teal animate-pulse p-10 font-mono">CARGANDO PIPELINE...</div>;
 
   return (
     <>
       <div className="fixed bottom-4 right-4 z-50">
-          {isSaving ? (
-              <div className="flex items-center gap-2 bg-slate-900 border border-kiriko-teal/30 px-3 py-1 rounded-full text-[10px] text-kiriko-teal animate-pulse">
-                  <Loader2 size={10} className="animate-spin" /> Guardando en Nube...
-              </div>
-          ) : (
-             <div className="text-[10px] text-slate-600 opacity-50">Sincronizado</div>
-          )}
+          {isSaving && <div className="flex items-center gap-2 bg-slate-900 border border-kiriko-teal/30 px-3 py-1 rounded-full text-[10px] text-kiriko-teal animate-pulse"><Loader2 size={10} className="animate-spin" /> Guardando...</div>}
       </div>
 
-      <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-320px)] items-start">
+      <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-280px)] items-start">
         {columns.map((col) => (
-          <div key={col.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)} className="min-w-[350px] bg-transparent border border-slate-800/50 rounded-xl flex flex-col h-full hover:bg-white/5 transition-colors">
-            <div className="flex justify-between items-center mb-4 p-4 pb-0">
-              <div className="flex items-center gap-3">
-                 <div className={`w-2.5 h-2.5 rounded-full ${col.color} shadow-[0_0_8px_currentColor]`}></div>
-                 <h3 className="font-bold text-xs tracking-widest text-white uppercase">{col.title}</h3>
-              </div>
-              <span className="text-xs text-slate-600 font-mono bg-slate-900 px-2 py-1 rounded-full">{col.tasks.length}</span>
+          <div key={col.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)} className="min-w-[320px] flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 px-2">
+              <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${col.color}`}></div><h3 className="font-bold text-xs text-white uppercase tracking-wider">{col.title}</h3></div>
+              <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800">{col.tasks.length}</span>
             </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 scrollbar-none pb-10">
+               {col.tasks
+                 .filter(task => {
+                    if (!searchTerm) return true;
+                    const searchLower = searchTerm.toLowerCase();
+                    const titleMatch = task.title.toLowerCase().includes(searchLower);
+                    const clientMatch = task.client_data?.name.toLowerCase().includes(searchLower);
+                    return titleMatch || clientMatch;
+                 })
+                 .map((task) => (
+                 <div key={task.id} draggable onDragStart={(e) => handleDragStart(e, task.id, col.id)} className="group bg-slate-900/40 hover:bg-slate-900 border border-slate-800/60 hover:border-kiriko-teal/40 p-4 rounded-lg cursor-grab active:cursor-grabbing transition-all relative">
+                    
+                    <div className="flex justify-between items-start mb-2">
+                        <h4 onClick={() => setEditingTask({ task })} className="font-bold text-slate-200 text-sm hover:text-kiriko-teal cursor-pointer transition-colors truncate pr-2 flex-1">{task.title}</h4>
+                        <Flag size={10} className={task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-slate-500'} fill="currentColor" />
+                    </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-none">
-               {col.tasks.map((task) => (
-                 <div key={task.id} draggable onDragStart={(e) => handleDragStart(e, task.id, col.id)} onClick={() => setEditingTask({ colId: col.id, task: { ...task, files: task.files || [] } })} className="group bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-kiriko-teal/50 p-5 rounded-xl cursor-grab active:cursor-grabbing transition-all duration-200 relative shadow-lg">
-                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-kiriko-teal opacity-0 group-hover:opacity-100 rounded-l-xl transition-opacity"></div>
-                    <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-bold text-white text-sm group-hover:text-kiriko-teal transition-colors tracking-wide truncate pr-2">{task.title}</h4>
-                        <div className={`${getPriorityColor(task.priority)} opacity-80`}><Flag size={10} fill="currentColor" /></div>
+                    <div className="flex items-center gap-2 mb-3">
+                        {task.client_id && task.client_data ? (
+                             <button 
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()} 
+                                onClick={(e) => { 
+                                    e.preventDefault();
+                                    e.stopPropagation(); 
+                                    onOpenClient(task.client_id!); 
+                                }} 
+                                className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-kiriko-teal font-medium group/client hover:bg-white/5 px-2 py-1 rounded -ml-2 transition-all cursor-pointer z-20 relative"
+                             >
+                                {task.client_data.logo_url ? <img src={task.client_data.logo_url} className="w-5 h-5 rounded-full object-cover border border-slate-600" /> : <Building size={12}/>}
+                                <span className="truncate max-w-[150px] group-hover/client:underline">{task.client_data.name}</span>
+                             </button>
+                        ) : (<span className="flex items-center gap-1 text-[11px] text-slate-600 italic"><Building size={10}/> Sin Asignar</span>)}
                     </div>
-                    <p className="text-xs text-slate-500 mb-3 font-medium flex items-center gap-2"><Building size={10} />{task.company}</p>
-                    <div className="flex gap-3 mb-3">
-                        {task.files && task.files.length > 0 && <div className="flex items-center gap-1 text-[10px] text-kiriko-teal/80"><Paperclip size={10} /> {task.files.length}</div>}
-                        {task.dueDate && <div className="flex items-center gap-1 text-[10px] text-slate-400"><Calendar size={10} /> {new Date(task.dueDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</div>}
+
+                    <div className="flex flex-wrap gap-1 mb-2">
+                        {task.tags?.map((tag, i) => (
+                            <span key={i} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{tag}</span>
+                        ))}
                     </div>
-                    <div className="flex justify-between items-end border-t border-slate-800/50 pt-3">
-                        <div className="flex gap-2">{task.tags.slice(0, 3).map(tag => (<span key={tag} className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] text-slate-400 font-mono uppercase tracking-wider">{tag}</span>))}</div>
-                        <div className="font-bold text-white text-sm font-mono tracking-tight flex items-center gap-1"><span className="text-kiriko-teal">$</span>{task.value.toLocaleString()}</div>
+
+                    <div className="flex justify-between items-end pt-2 border-t border-slate-800/50">
+                        <div className="flex gap-2">{task.files?.length > 0 && <span className="flex items-center gap-1 text-[9px] text-slate-500"><Paperclip size={8}/> {task.files.length}</span>}</div>
+                        <div className="font-bold text-slate-300 text-xs font-mono">{formatMoney(task.value, task.currency)}</div>
                     </div>
                  </div>
                ))}
-               <button onClick={() => addTask(col.id)} className="w-full py-3 mt-2 border border-dashed border-slate-800 text-slate-600 rounded-lg hover:border-kiriko-teal/30 hover:text-kiriko-teal hover:bg-kiriko-teal/5 transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 opacity-60 hover:opacity-100"><Plus size={14} /> Nueva Misión</button>
+               <button onClick={() => addTask(col.id)} className="w-full py-2 border border-dashed border-slate-800 text-slate-600 rounded hover:border-kiriko-teal/30 hover:text-kiriko-teal text-[10px] uppercase flex items-center justify-center gap-1 transition-all opacity-50 hover:opacity-100"><Plus size={12} /> Agregar</button>
             </div>
           </div>
         ))}
       </div>
 
       {editingTask && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setEditingTask(null)}></div>
-            <div className="relative w-full max-w-lg h-full bg-black border-l border-kiriko-teal/30 shadow-[-20px_0_50px_rgba(45,212,191,0.1)] animate-in slide-in-from-right duration-300 flex flex-col">
-               <div className="absolute left-0 top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-kiriko-teal to-transparent"></div>
-               <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/30">
-                   <div>
-                       <h2 className="text-kiriko-teal font-bold uppercase tracking-[0.2em] text-sm mb-1 flex items-center gap-2"><Edit size={14} /> Misión Control</h2>
-                       <p className="text-[10px] text-slate-500 font-mono">ID: {editingTask.task.id}</p>
+        <div className="fixed inset-0 z-[100] flex justify-center items-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingTask(null)}></div>
+            <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar animate-in zoom-in-95">
+               <form onSubmit={saveTaskLocal} className="p-6 space-y-6">
+                   <input type="text" value={editingTask.task.title} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, title: e.target.value }})} className="w-full bg-transparent text-xl font-bold text-white border-b border-slate-700 focus:border-kiriko-teal outline-none pb-2" />
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                        <div><label className="text-[10px] text-slate-500 font-bold uppercase">Valor</label><input type="number" value={editingTask.task.value} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, value: Number(e.target.value) }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm" /></div>
+                        <div><label className="text-[10px] text-slate-500 font-bold uppercase">Prioridad</label>
+                            <select value={editingTask.task.priority} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, priority: e.target.value as any }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm">
+                                <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option>
+                            </select>
+                        </div>
                    </div>
-                   <button onClick={() => setEditingTask(null)} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"><X size={24} /></button>
-               </div>
 
-               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                   <form onSubmit={saveTaskLocal} className="space-y-8">
-                       <div className="group">
-                           <label className="block text-[10px] text-kiriko-teal/70 uppercase tracking-widest mb-2 font-bold">Objetivo</label>
-                           <input type="text" value={editingTask.task.title} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, title: e.target.value }})} className="w-full bg-transparent border-b border-slate-700 text-white text-xl font-bold py-2 focus:border-kiriko-teal outline-none transition-all" />
-                       </div>
-                       
-                       <div className="grid grid-cols-2 gap-6">
-                           <div><label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold flex items-center gap-2"><Building size={12} /> Cliente</label><input type="text" value={editingTask.task.company} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, company: e.target.value }})} className="w-full bg-slate-900/50 border border-slate-800 text-slate-300 p-3 rounded-lg focus:border-kiriko-teal/50 outline-none transition-all text-sm" /></div>
-                           <div><label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold flex items-center gap-2"><DollarSign size={12} /> Valor</label><div className="relative"><span className="absolute left-3 top-3 text-kiriko-teal font-bold">$</span><input type="number" value={editingTask.task.value} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, value: Number(e.target.value) }})} className="w-full bg-slate-900/50 border border-slate-800 text-white p-3 pl-6 rounded-lg focus:border-kiriko-teal/50 outline-none transition-all font-mono text-sm" /></div></div>
-                       </div>
+                   <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-2 block flex items-center gap-1"><Tag size={12}/> Etiquetas</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {editingTask.task.tags?.map((tag, i) => (
+                                <span key={i} className="text-xs bg-kiriko-teal/20 text-kiriko-teal border border-kiriko-teal/40 px-2 py-1 rounded-full flex items-center gap-1">
+                                    {tag} <X size={10} className="cursor-pointer hover:text-white" onClick={() => handleRemoveTag(tag)} />
+                                </span>
+                            ))}
+                        </div>
+                        <input type="text" value={tempTag} onChange={(e) => setTempTag(e.target.value)} onKeyDown={handleAddTag} placeholder="+ Etiqueta y Enter" className="w-full bg-slate-800/50 text-xs p-2 rounded border border-slate-700 focus:border-kiriko-teal outline-none text-slate-300" />
+                   </div>
 
-                       <div className="grid grid-cols-2 gap-6">
-                           <div><label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold flex items-center gap-2"><Calendar size={12} /> Fecha Límite</label><input type="date" value={editingTask.task.dueDate} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, dueDate: e.target.value }})} className="w-full bg-slate-900/50 border border-slate-800 text-slate-300 p-3 rounded-lg focus:border-kiriko-teal/50 outline-none transition-all text-sm [color-scheme:dark]" /></div>
-                           <div><label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold flex items-center gap-2"><Flag size={12} /> Prioridad</label><select value={editingTask.task.priority} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, priority: e.target.value as Priority }})} className="w-full bg-slate-900/50 border border-slate-800 text-slate-300 p-3 rounded-lg focus:border-kiriko-teal/50 outline-none transition-all text-sm appearance-none cursor-pointer"><option value="Low">Baja (Low)</option><option value="Medium">Media (Normal)</option><option value="High">Alta (Urgent)</option></select></div>
-                       </div>
+                   <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1"><Paperclip size={12}/> Archivos</label>
+                            <label className="cursor-pointer text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-all">
+                                {uploadingFile ? <Loader2 size={10} className="animate-spin"/> : <Upload size={10}/>} Subir
+                                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
+                            </label>
+                        </div>
+                        <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
+                            {editingTask.task.files?.map((file) => (
+                                <div key={file.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2 rounded group">
+                                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 overflow-hidden">
+                                        <FileText size={14} className="text-kiriko-teal flex-shrink-0" /><span className="text-xs text-slate-300 truncate hover:text-white hover:underline">{file.name}</span>
+                                    </a>
+                                    <button type="button" onClick={() => handleRemoveFile(file.id)} className="text-slate-600 hover:text-red-500"><X size={12}/></button>
+                                </div>
+                            ))}
+                        </div>
+                   </div>
 
-                       <div><label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold flex items-center gap-2"><AlignLeft size={12} /> Bitácora</label><textarea rows={4} value={editingTask.task.description} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, description: e.target.value }})} className="w-full bg-slate-900/50 border border-slate-800 text-slate-300 p-4 rounded-lg focus:border-kiriko-teal/50 outline-none transition-all text-sm leading-relaxed" placeholder="Notas..."></textarea></div>
-
-                       <div className="pt-4 border-t border-slate-800">
-                           <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-3 font-bold flex items-center gap-2"><Paperclip size={12} /> Archivos (Nube)</label>
-                           {(editingTask.task.files || []).length > 0 && (
-                               <div className="space-y-2 mb-4">
-                                   {(editingTask.task.files || []).map(file => (
-                                       <div key={file.id} className="flex items-center justify-between bg-slate-900 border border-slate-800 p-3 rounded-lg group hover:border-kiriko-teal/30 transition-all">
-                                           <div className="flex items-center gap-3">
-                                               <div className="p-2 bg-slate-800 rounded text-kiriko-teal">{['jpg','png','jpeg'].includes(file.type) ? <ImageIcon size={16} /> : <FileText size={16} />}</div>
-                                               <div>
-                                                   <a href={file.url} target="_blank" rel="noreferrer" className="text-xs text-white font-medium truncate max-w-[150px] hover:text-kiriko-teal hover:underline">{file.name}</a>
-                                                   <p className="text-[10px] text-slate-500">{file.size} • {file.date}</p>
-                                               </div>
-                                           </div>
-                                           <button type="button" onClick={() => removeFile(file.id)} className="text-slate-600 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} /></button>
-                                       </div>
-                                   ))}
-                               </div>
-                           )}
-                           <div className={`border-2 border-dashed border-slate-800 rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 transition-all cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-kiriko-teal/50 hover:bg-kiriko-teal/5 hover:text-kiriko-teal'}`} onClick={() => !isUploading && fileInputRef.current?.click()}>
-                               {isUploading ? <Loader2 size={24} className="animate-spin mb-2" /> : <UploadCloud size={24} className="mb-2" />}
-                               <p className="text-xs font-bold uppercase tracking-wider">{isUploading ? 'Subiendo a la nube...' : 'Subir Archivos'}</p>
-                               <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} disabled={isUploading} />
-                           </div>
-                       </div>
-                   </form>
-               </div>
-
-               <div className="p-6 border-t border-slate-800 bg-slate-900/30 flex gap-4">
-                   <button type="button" onClick={() => deleteTask(editingTask.colId, editingTask.task.id)} className="px-4 py-3 border border-red-900/30 text-red-500 hover:bg-red-900/10 hover:border-red-500/50 rounded-lg transition-all"><Trash2 size={18} /></button>
-                   <button onClick={saveTaskLocal} className="flex-1 bg-kiriko-teal hover:bg-teal-400 text-black font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(45,212,191,0.3)] transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs"><Save size={16} /> Guardar Cambios</button>
-               </div>
+                   <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-4">
+                        <button type="button" onClick={handleDeleteDeal} className="p-2 text-red-500 hover:bg-red-900/20 rounded transition-colors"><Trash2 size={18} /></button>
+                        <div className="flex gap-2">
+                             <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-slate-400 text-sm">Cancelar</button>
+                             <button type="submit" className="px-4 py-2 bg-kiriko-teal text-black font-bold rounded text-sm hover:bg-teal-400">Guardar</button>
+                        </div>
+                   </div>
+               </form>
             </div>
         </div>
       )}

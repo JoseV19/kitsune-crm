@@ -1,102 +1,114 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Lock } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { supabase } from '@/lib/SupabaseClient';
+import { Loader2, ShieldCheck, Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
-interface LoginProps {
+// AGREGAMOS ESTO: Definir qué recibe el componente
+interface LoginPageProps {
   onLogin: (name: string, role: string) => void;
 }
 
-export function LoginPage({ onLogin }: LoginProps) {
-  const [username, setUsername] = useState('');
-  const [role, setRole] = useState('Senior Operative');
+export function LoginPage({ onLogin }: LoginPageProps) { // RECIBIMOS onLogin aquí
   const [loading, setLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username) return;
-
     setLoading(true);
-    setTimeout(() => {
-        onLogin(username, role);
-    }, 1500);
+    setErrorMsg('');
+
+    try {
+        if (isRegistering) {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            alert("¡Usuario creado! Ya puedes iniciar sesión.");
+        } else {
+            // --- LOGIN ---
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+
+            // ¡CONEXIÓN REAL!: Avisamos al page.tsx que ya entramos
+            const name = data.user?.email?.split('@')[0] || 'Agente';
+            onLogin(name, 'Senior Operative'); 
+        }
+    } catch (error: any) {
+        setErrorMsg(error.message === 'Invalid login credentials' 
+            ? 'Correo o contraseña incorrectos' 
+            : error.message);
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-      
-      {/* Fondo ambiental */}
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-kiriko-teal/20 via-black to-black"></div>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Fondo Decorativo */}
+        <div className="absolute inset-0 z-0">
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(45,212,191,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(45,212,191,0.05)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-kiriko-teal/5 blur-[120px] rounded-full"></div>
+        </div>
 
-      <motion.div 
-         initial={{ opacity: 0, scale: 0.9, y: 20 }}
-         animate={{ opacity: 1, scale: 1, y: 0 }}
-         transition={{ duration: 0.5 }}
-         className="w-full max-w-md p-8 relative z-10"
-      >
-        {/* --- LOGO PRINCIPAL --- */}
-        <div className="flex flex-col items-center mb-8">
-            <div className="w-full max-w-[320px] mb-4 drop-shadow-[0_0_25px_rgba(45,212,191,0.3)]">
-              
-                <img src="/logo-kiriko.png" alt="Kitsune CRM" className="w-full h-auto object-contain" />
+        <div className="relative z-10 w-full max-w-md p-8">
+            <div className="text-center mb-10">
+                <img src="/logo-kiriko.png" alt="Kitsune" className="w-48 mx-auto mb-6 drop-shadow-[0_0:15px_rgba(45,212,191,0.5)]" />
+                <h2 className="text-xl font-bold text-white tracking-widest uppercase flex items-center justify-center gap-2">
+                    <ShieldCheck className="text-kiriko-teal" /> Acceso Seguro
+                </h2>
             </div>
-            <p className="text-slate-500 text-xs tracking-[0.3em] uppercase animate-pulse">Sistema de Acceso Seguro</p>
-        </div>
 
-        <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-8 rounded-sm shadow-2xl relative overflow-hidden">
-            
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-kiriko-teal to-transparent opacity-50"></div>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2 block">Agente / Usuario</label>
-                    <input 
-                        type="text" 
-                        autoFocus
-                        placeholder="Nombre clave..."
-                        className="w-full bg-black/50 border border-slate-700 text-white p-3 rounded-sm focus:border-kiriko-teal focus:ring-1 focus:ring-kiriko-teal outline-none transition-all placeholder:text-slate-600"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2 block">Nivel de Acceso</label>
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-3.5 text-slate-600" size={16} />
-                        <select 
-                            className="w-full bg-black/50 border border-slate-700 text-white p-3 pl-10 rounded-sm focus:border-kiriko-teal outline-none appearance-none cursor-pointer"
-                            value={role}
-                            onChange={(e) => setRole(e.target.value)}
-                        >
-                            <option>Senior Operative</option>
-                            <option>Team Lead</option>
-                            <option>Administrator</option>
-                        </select>
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 p-8 rounded-2xl shadow-2xl">
+                <form onSubmit={handleAuth} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Correo Corporativo</label>
+                        <div className="relative group">
+                            <Mail className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                            <input 
+                                type="email" required value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-black/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white focus:border-kiriko-teal outline-none transition-all"
+                                placeholder="agente@zionak.com"
+                            />
+                        </div>
                     </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Contraseña</label>
+                        <div className="relative group">
+                            <Lock className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                            <input 
+                                type="password" required value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-black/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white focus:border-kiriko-teal outline-none transition-all"
+                                placeholder="••••••••"
+                            />
+                        </div>
+                    </div>
+
+                    {errorMsg && <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-xs text-center font-bold">⚠️ {errorMsg}</div>}
+
+                    <button 
+                        type="submit" disabled={loading}
+                        className="w-full bg-kiriko-teal hover:bg-teal-400 text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-sm"
+                    >
+                        {loading ? <Loader2 className="animate-spin" /> : (isRegistering ? <UserPlus size={18}/> : <LogIn size={18}/>)}
+                        {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                    </button>
+                </form>
+
+                <div className="mt-6 text-center">
+                    <button 
+                        onClick={() => { setIsRegistering(!isRegistering); setErrorMsg(''); }}
+                        className="text-slate-500 hover:text-white text-xs underline transition-colors"
+                    >
+                        {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes acceso? Crea una cuenta'}
+                    </button>
                 </div>
-
-                <button 
-                    disabled={loading}
-                    className="w-full bg-kiriko-teal hover:bg-teal-400 text-black font-bold py-3.5 rounded-sm shadow-[0_0_20px_rgba(45,212,191,0.3)] hover:shadow-[0_0_30px_rgba(45,212,191,0.5)] transition-all flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    {loading ? (
-                        <span className="animate-pulse">Verificando Credenciales...</span>
-                    ) : (
-                        <>
-                            ENTRAR AL SISTEMA <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                        </>
-                    )}
-                </button>
-            </form>
+            </div>
         </div>
-
-        <p className="text-center text-[10px] text-slate-700 mt-8 font-mono">
-            © 2026 Zionak Studios. All rights reserved.
-        </p>
-
-      </motion.div>
     </div>
   );
 }
