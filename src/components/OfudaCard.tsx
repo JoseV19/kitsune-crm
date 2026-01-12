@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { MoreHorizontal } from 'lucide-react';
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { MoreHorizontal } from "lucide-react";
 
 interface CardProps {
   id: string;
@@ -19,7 +19,7 @@ export function OfudaCard({ id, title, amount, tag, onClick }: CardProps) {
     setNodeRef,
     transform,
     transition,
-    isDragging
+    isDragging,
   } = useSortable({ id });
 
   const style = {
@@ -35,18 +35,18 @@ export function OfudaCard({ id, title, amount, tag, onClick }: CardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick} // <--- CONECTAMOS EL CLIC AQUÍ
-      className="bg-kiriko-800 p-4 rounded-sm border-l-2 border-kiriko-teal shadow-lg mb-3 cursor-pointer hover:translate-y-[-2px] hover:shadow-[0_0_15px_rgba(45,212,191,0.3)] transition-all group active:cursor-grabbing relative"
+      className="bg-kiriko-card-bg p-4 rounded-sm border-l-2 border-kiriko-teal shadow-lg mb-3 cursor-pointer hover:translate-y-[-2px] hover:shadow-[0_0_15px_rgba(45,212,191,0.3)] transition-all group active:cursor-grabbing relative"
     >
       <div className="flex justify-between items-start mb-2">
         <span className="text-white font-bold text-sm group-hover:text-kiriko-teal transition-colors">
           {title}
         </span>
         {/* Evitamos que el clic en los 3 puntos abra el panel (stopPropagation) */}
-        <div 
-            className="p-1 hover:bg-slate-700 rounded"
-            onPointerDown={(e) => e.stopPropagation()} 
+        <div
+          className="p-1 hover:bg-slate-700 rounded"
+          onPointerDown={(e) => e.stopPropagation()}
         >
-            <MoreHorizontal className="text-slate-500 w-4 h-4 hover:text-white" />
+          <MoreHorizontal className="text-slate-500 w-4 h-4 hover:text-white" />
         </div>
       </div>
       <div className="flex justify-between items-center mt-3">
