@@ -3,13 +3,23 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+@theme {
+  --color-kiriko-teal: #00D4BD;
+  --color-kiriko-bg: #0f172a;
+  --color-kiriko-card-bg:#1e293b;
+  --color-kiriko-red: #f43f5e;
+}
+
+::selection {
+  /* This will use the value of the 'yellow-300' utility */
+  background-color: var(--color-teal-500);
+  color: var(--color-white); /* Optional: ensure text is readable */
 }
 
 @media (prefers-color-scheme: dark) {
