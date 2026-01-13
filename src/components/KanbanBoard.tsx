@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/SupabaseClient'; 
-import { Plus, Trash2, Building, Tag, Paperclip, Flag, Loader2, X, Upload, FileText } from 'lucide-react';
+import { Plus, Trash2, Building, Tag, Paperclip, Flag, Loader2, X, Upload, FileText, Package } from 'lucide-react';
 import { Deal, DealStage } from '@/types/crm';
 
 const STAGE_CONFIG: Record<DealStage, { title: string; color: string }> = {
@@ -19,10 +19,18 @@ const STAGE_ORDER: DealStage[] = ['prospect', 'qualified', 'meeting', 'negotiati
 
 interface Attachment { id: string; name: string; size: number; type: string; url: string; created_at: string; }
 
+// Interfaz para el resumen de productos en la tarjeta
+interface ItemSummary {
+    quantity: number;
+    product: { name: string } | null;
+}
+
 interface KanbanTask extends Deal {
   files: Attachment[]; 
   tags: string[];
   client_data?: { name: string; logo_url?: string } | null;
+  // NUEVO: Array de items para mostrar "700x O-Rings"
+  deal_items?: ItemSummary[]; 
 }
 
 interface Column { id: DealStage; title: string; color: string; tasks: KanbanTask[]; }
@@ -43,9 +51,17 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const fetchDeals = async () => {
+    // 1. MODIFICAMOS LA CONSULTA PARA TRAER LOS PRODUCTOS
     const { data, error } = await supabase
       .from('deals')
-      .select('*, clients (id, name, logo_url)')
+      .select(`
+        *, 
+        clients (id, name, logo_url),
+        deal_items (
+            quantity,
+            product:products (name)
+        )
+      `)
       .order('created_at', { ascending: false });
 
     if (error) { console.error("Error:", error); return; }
@@ -64,7 +80,8 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                 ...deal, 
                 files: Array.isArray(deal.files) ? deal.files : [], 
                 tags: Array.isArray(deal.tags) ? deal.tags : ['Nuevo'], 
-                client_data: deal.clients 
+                client_data: deal.clients,
+                deal_items: deal.deal_items // Asignamos los items traídos
             });
         }
     });
@@ -221,6 +238,21 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                         ) : (<span className="flex items-center gap-1 text-[11px] text-slate-600 italic"><Building size={10}/> Sin Asignar</span>)}
                     </div>
 
+                    {/* --- NUEVO: RESUMEN DE PRODUCTOS ("700x O-RINGS") --- */}
+                    {task.deal_items && task.deal_items.length > 0 && (
+                        <div className="mb-3 px-2 py-1.5 bg-slate-950/60 rounded border border-slate-800 flex items-center gap-2 overflow-hidden">
+                            <Package size={10} className="text-kiriko-teal flex-shrink-0" />
+                            <div className="flex-1 text-[10px] font-mono text-slate-300 truncate">
+                                <span className="text-kiriko-teal font-bold mr-1">{task.deal_items[0].quantity}x</span> 
+                                {task.deal_items[0].product?.name || 'Producto'}
+                            </div>
+                            {task.deal_items.length > 1 && (
+                                <span className="text-[9px] text-slate-500 bg-slate-900 px-1 rounded">+{task.deal_items.length - 1}</span>
+                            )}
+                        </div>
+                    )}
+                    {/* ----------------------------------------------------- */}
+
                     <div className="flex flex-wrap gap-1 mb-2">
                         {task.tags?.map((tag, i) => (
                             <span key={i} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{tag}</span>
@@ -247,12 +279,12 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                    <input type="text" value={editingTask.task.title} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, title: e.target.value }})} className="w-full bg-transparent text-xl font-bold text-white border-b border-slate-700 focus:border-kiriko-teal outline-none pb-2" />
                    
                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="text-[10px] text-slate-500 font-bold uppercase">Valor</label><input type="number" value={editingTask.task.value} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, value: Number(e.target.value) }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm" /></div>
-                        <div><label className="text-[10px] text-slate-500 font-bold uppercase">Prioridad</label>
-                            <select value={editingTask.task.priority} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, priority: e.target.value as any }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm">
-                                <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option>
-                            </select>
-                        </div>
+                       <div><label className="text-[10px] text-slate-500 font-bold uppercase">Valor</label><input type="number" value={editingTask.task.value} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, value: Number(e.target.value) }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm" /></div>
+                       <div><label className="text-[10px] text-slate-500 font-bold uppercase">Prioridad</label>
+                           <select value={editingTask.task.priority} onChange={(e) => setEditingTask({...editingTask, task: { ...editingTask.task, priority: e.target.value as any }})} className="w-full bg-slate-800 rounded p-2 text-white text-sm">
+                               <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option>
+                           </select>
+                       </div>
                    </div>
 
                    <div>
@@ -268,31 +300,31 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                    </div>
 
                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1"><Paperclip size={12}/> Archivos</label>
-                            <label className="cursor-pointer text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-all">
-                                {uploadingFile ? <Loader2 size={10} className="animate-spin"/> : <Upload size={10}/>} Subir
-                                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
-                            </label>
-                        </div>
-                        <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
-                            {editingTask.task.files?.map((file) => (
-                                <div key={file.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2 rounded group">
-                                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 overflow-hidden">
-                                        <FileText size={14} className="text-kiriko-teal flex-shrink-0" /><span className="text-xs text-slate-300 truncate hover:text-white hover:underline">{file.name}</span>
-                                    </a>
-                                    <button type="button" onClick={() => handleRemoveFile(file.id)} className="text-slate-600 hover:text-red-500"><X size={12}/></button>
-                                </div>
-                            ))}
-                        </div>
+                       <div className="flex justify-between items-center mb-2">
+                           <label className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1"><Paperclip size={12}/> Archivos</label>
+                           <label className="cursor-pointer text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-all">
+                               {uploadingFile ? <Loader2 size={10} className="animate-spin"/> : <Upload size={10}/>} Subir
+                               <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
+                           </label>
+                       </div>
+                       <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
+                           {editingTask.task.files?.map((file) => (
+                               <div key={file.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2 rounded group">
+                                   <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 overflow-hidden">
+                                       <FileText size={14} className="text-kiriko-teal flex-shrink-0" /><span className="text-xs text-slate-300 truncate hover:text-white hover:underline">{file.name}</span>
+                                   </a>
+                                   <button type="button" onClick={() => handleRemoveFile(file.id)} className="text-slate-600 hover:text-red-500"><X size={12}/></button>
+                               </div>
+                           ))}
+                       </div>
                    </div>
 
                    <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-4">
-                        <button type="button" onClick={handleDeleteDeal} className="p-2 text-red-500 hover:bg-red-900/20 rounded transition-colors"><Trash2 size={18} /></button>
-                        <div className="flex gap-2">
-                             <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-slate-400 text-sm">Cancelar</button>
-                             <button type="submit" className="px-4 py-2 bg-kiriko-teal text-black font-bold rounded text-sm hover:bg-teal-400">Guardar</button>
-                        </div>
+                       <button type="button" onClick={handleDeleteDeal} className="p-2 text-red-500 hover:bg-red-900/20 rounded transition-colors"><Trash2 size={18} /></button>
+                       <div className="flex gap-2">
+                            <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-slate-400 text-sm">Cancelar</button>
+                            <button type="submit" className="px-4 py-2 bg-kiriko-teal text-black font-bold rounded text-sm hover:bg-teal-400">Guardar</button>
+                       </div>
                    </div>
                </form>
             </div>
