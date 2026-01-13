@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/SupabaseClient';
+// Importamos el generador actualizado
 import { generarPDFZionak } from '@/lib/pdfGenerator'; 
 import DealEditorModal from './DealEditorModal'; 
 import ClientHealthDNA from './ClientHealthDNA';
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Client, Deal, Activity, Contact } from '@/types/crm';
 
+// --- DEFINICIÓN LOCAL PARA EVITAR ERRORES DE BUILD EN VERCEL ---
 interface OrganizationSettings {
   id: string;
   company_name: string;
@@ -190,23 +192,29 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     window.open(url, '_blank');
   };
 
+  // --- PDF GENERATOR (LLAMADA ACTUALIZADA) ---
   const handleGeneratePDF = async () => {
     if (!client) return;
+    
+    // Configuración por defecto si no existe orgSettings
     const configToUse = orgSettings || {
         id: 'default',
         company_name: 'Zionak Studios',
         address: 'Ciudad de Guatemala',
         email: 'info@zionak.com',
         phone: '',
-        tax_id: ''
+        tax_id: 'CF'
     };
+
     const productosMap = deals.map(deal => {
         const precio = deal.value || 0;
         return {
             nombre: deal.title, cantidad: 1, precio: precio, subtotal: precio, iva: precio * 0.12, total: precio * 1.12
         };
     });
+    
     const totalFinalCalculado = productosMap.reduce((acc, item) => acc + item.total, 0);
+    
     const datosParaImprimir = {
         numeroCotizacion: "KITSUNE-" + Math.floor(Math.random() * 10000), 
         cliente: client.name,
@@ -217,6 +225,8 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         productos: productosMap,
         totalFinal: totalFinalCalculado.toFixed(2),
     };
+
+    // AHORA SÍ: Llamamos con 2 argumentos, pero como pdfGenerator acepta 'any', no dará error.
     generarPDFZionak(datosParaImprimir, configToUse);
   };
 
