@@ -10,7 +10,6 @@ export type DealStage =
   | 'won'
   | 'lost';
 
-
 export interface Client {
   id: string;
   created_at: string;
@@ -18,8 +17,7 @@ export interface Client {
   logo_url?: string | null;
   notes?: string | null;
   
- 
-  phone?: string | null;      
+  phone?: string | null;       
   phone_pbx?: string | null;  
   address?: string | null;    
   website?: string | null;    
@@ -31,18 +29,16 @@ export interface Client {
   owner_id?: string | null;
 }
 
-
 export interface Contact {
   id: string;
   client_id: string; 
   created_at: string;
-  name: string;      
+  name: string;       
   role?: string | null; 
   email?: string | null;
   phone?: string | null; 
   is_primary?: boolean;  
 }
-
 
 export interface Product {
   id: string;
@@ -54,7 +50,6 @@ export interface Product {
   image_url?: string | null;
 }
 
-
 export interface DealItem {
   id: string;
   deal_id: string;
@@ -63,10 +58,8 @@ export interface DealItem {
   unit_price: number;  
   total_price: number; 
   
- 
-  product?: Product; 
+  product?: Product; // Opcional: Para cuando hacemos joins
 }
-
 
 export interface Deal {
   id: string;
@@ -82,10 +75,8 @@ export interface Deal {
   tags?: string[];
   client_id?: string | null;
 
- 
   items?: DealItem[]; 
 }
-
 
 export interface Activity {
   id: string;
@@ -95,3 +86,16 @@ export interface Activity {
   author_name?: string;
   created_at: string;
 }
+
+
+export interface OrganizationSettings {
+  id: string;
+  company_name: string;
+  tax_id?: string | null; // NIT
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+}
+
