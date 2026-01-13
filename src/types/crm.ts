@@ -9,7 +9,6 @@ export type DealStage =
   | 'negotiation'
   | 'won'
   | 'lost';
-
 export interface Client {
   id: string;
   created_at: string;
