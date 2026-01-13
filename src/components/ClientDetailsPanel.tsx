@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/SupabaseClient';
 import { generarPDFZionak } from '@/lib/pdfGenerator'; 
 import DealEditorModal from './DealEditorModal'; 
-// 1. IMPORTAMOS EL COMPONENTE NUEVO
 import ClientHealthDNA from './ClientHealthDNA';
 import { 
   X, Phone, Mail, Plus, Send, MessageSquare, 
@@ -20,14 +19,14 @@ interface ClientDetailsPanelProps {
 }
 
 export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClientDeleted }: ClientDetailsPanelProps) {
-  // --- ESTADOS DE DATOS ---
+  
   const [client, setClient] = useState<Client | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [orgSettings, setOrgSettings] = useState<OrganizationSettings | null>(null);
   
-  // --- ESTADOS DE UI ---
+  
   const [activeTab, setActiveTab] = useState<'activities' | 'contacts'>('activities');
   const [newNote, setNewNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,11 +34,11 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // --- ESTADOS DE MODALES ---
+ 
   const [selectedDealForEdit, setSelectedDealForEdit] = useState<Deal | null>(null);
   const [isAddingContact, setIsAddingContact] = useState(false);
   
-  // --- FORMULARIOS ---
+  
   const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' });
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', job_title: '' });
 
@@ -91,7 +90,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     setContacts(data || []);
   };
 
-  // --- LÓGICA "IA" FUNCIONAL (Se mantiene para la bitácora) ---
+  
   const aiSummary = useMemo(() => {
     if (!client) return "Analizando datos del cliente...";
     const activeDeals = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
@@ -119,7 +118,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     return text;
   }, [client, deals, activities]);
 
-  // --- ACCIONES ---
+  
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId) return;
@@ -229,7 +228,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
       
       <div className="relative w-full max-w-[1150px] h-full bg-[#020617] border-l border-kiriko-teal/20 shadow-[-20px_0_50px_rgba(45,212,191,0.1)] flex flex-col animate-in slide-in-from-right duration-300 font-sans text-white">
         
-        {/* HEADER */}
         <div className="bg-slate-950/50 border-b border-slate-800 px-6 py-3 flex justify-between items-center flex-none backdrop-blur-md">
           <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
             <Briefcase size={14} className="text-kiriko-teal"/>
@@ -245,10 +243,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         <div className="flex-1 flex overflow-hidden relative">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(45,212,191,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(45,212,191,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none z-0"></div>
 
-          {/* COLUMNA IZQUIERDA: PERFIL CON HOLOGRAMA */}
+         
           <div className="w-[320px] bg-slate-950/80 border-r border-slate-800 overflow-y-auto custom-scrollbar p-6 z-10">
             
-            {/* 2. AQUÍ INSERTAMOS EL HOLOGRAMA DE SALUD */}
             <div className="mb-4 animate-in zoom-in-95 duration-500">
                <ClientHealthDNA 
                   deals={deals} 
@@ -321,7 +318,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
             </div>
           </div>
 
-          {/* COLUMNA CENTRAL */}
+          
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 z-10 bg-[#020617]">
             <div className="flex gap-6 border-b border-slate-800 mb-4">
               <button 
@@ -341,7 +338,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
             {activeTab === 'activities' && (
               <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                 
-                {/* --- IA SUMMARY --- */}
+                
                 <div className="bg-slate-900/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden relative group mb-6">
                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-kiriko-teal/5 opacity-50 group-hover:opacity-80 transition-opacity"></div>
                    <div className="p-6 relative">
@@ -499,7 +496,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
             )}
           </div>
 
-          {/* COLUMNA DERECHA */}
           <div className="w-[300px] bg-slate-950/80 border-l border-slate-800 p-6 space-y-6 overflow-y-auto custom-scrollbar z-10">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-6">
                 <Briefcase size={14} className="text-kiriko-teal"/> Asociaciones
@@ -552,7 +548,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   );
 }
 
-// Helpers Visuales (Se mantienen igual)
+
 function InfoItem({ label, value, isLink, color, icon }: { label: string, value?: string | null | number, isLink?: boolean, color?: string, icon?: React.ReactNode }) {
   return (
     <div className="mb-4">

@@ -8,7 +8,7 @@ interface DealEditorModalProps {
   deal: Deal;
   isOpen: boolean;
   onClose: () => void;
-  onUpdate: () => void; // Para refrescar el kanban/panel al cerrar
+  onUpdate: () => void; 
 }
 
 export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: DealEditorModalProps) {
@@ -21,7 +21,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   useEffect(() => {
     if (isOpen && deal) {
       fetchItems();
-      // Precargar productos para el buscador (si son pocos, sino mejor buscar on-type)
+      
       fetchProducts();
     }
   }, [isOpen, deal]);
@@ -40,7 +40,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const handleAddItem = async (product: Product) => {
-    // Verificar si ya existe
+    
     const exists = items.find(i => i.product_id === product.id);
     if (exists) return alert("Este producto ya está en la lista.");
 
@@ -49,7 +49,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
       product_id: product.id,
       quantity: 1,
       unit_price: product.unit_price,
-      // Total se calcula en base de datos o localmente para display
+      
     };
 
     const { data, error } = await supabase.from('deal_items').insert([newItem]).select('*, product:products(name)').single();
@@ -58,8 +58,8 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
         alert("Error al agregar: " + error.message);
     } else if (data) {
         setItems([...items, data]);
-        updateDealTotal([...items, data]); // Actualizar total del Deal
-        setIsSearching(false); // Cerrar buscador
+        updateDealTotal([...items, data]); 
+        setIsSearching(false); 
     }
   };
 
@@ -81,15 +81,13 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
     updateDealTotal(updatedItems);
   };
 
-  // Esta función suma todo y actualiza el valor en la tarjeta del Kanban
   const updateDealTotal = async (currentItems: DealItem[]) => {
     const total = currentItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
     
-    // Actualizamos el 'value' del Deal principal
+    
     await supabase.from('deals').update({ value: total }).eq('id', deal.id);
   };
 
-  // Buscador filtrado
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -117,7 +115,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             
-            {/* Lista de Items */}
+            
             <div className="space-y-3 mb-8">
                 {items.length === 0 ? (
                     <div className="text-center py-8 border border-dashed border-slate-800 rounded-xl">

@@ -10,27 +10,26 @@ interface ClientHealthDNAProps {
 }
 
 export default function ClientHealthDNA({ deals, activities, totalRevenue }: ClientHealthDNAProps) {
-  // --- LÓGICA DE CÁLCULO (EL CEREBRO) ---
+ 
   const healthData = useMemo(() => {
-    let score = 50; // Empezamos a la mitad
+    let score = 50; 
     let status = 'Neutral';
-    let colorTheme = 'blue'; // Opciones: blue, green, red, orange
+    let colorTheme = 'blue'; 
 
-    // 1. Análisis de Recencia (¿Cuándo hablamos por última vez?)
+    
     const lastActivity = activities[0];
     const daysSinceContact = lastActivity 
       ? Math.floor((new Date().getTime() - new Date(lastActivity.created_at).getTime()) / (1000 * 3600 * 24))
       : 999;
     
-    // 2. Análisis Comercial
+    
     const wonDealsCount = deals.filter(d => d.stage === 'won').length;
     const activeDealsCount = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost').length;
 
-    // --- REGLAS DE PUNTUACIÓN ---
-    // Contacto reciente suma mucho
+    
     if (daysSinceContact <= 7) score += 20;
     else if (daysSinceContact <= 14) score += 10;
-    else if (daysSinceContact > 30) score -= 20; // Castigo por abandono
+    else if (daysSinceContact > 30) score -= 20; 
 
     // Dinero manda
     if (totalRevenue > 10000) score += 15;
@@ -71,25 +70,25 @@ export default function ClientHealthDNA({ deals, activities, totalRevenue }: Cli
     red:   { primary: '#ef4444', secondary: '#b91c1c', shadow: 'rgba(239, 68, 68, 0.5)', icon: <AlertTriangle size={16}/> },
   }[healthData.colorTheme] || { primary: '#2dd4bf', secondary: '#0ea5e9', shadow: 'rgba(45, 212, 191, 0.5)', icon: <ActivityIcon size={16}/> };
 
-  // La velocidad de giro depende de la salud (más sano = más rápido/energético)
+  
   const rotationSpeed = `${30 - (healthData.score / 100 * 20)}s`; 
 
   return (
     <div className="relative h-[260px] rounded-2xl overflow-hidden bg-[#050b1a] border border-slate-800 p-4 flex flex-col items-center justify-center group shadow-inner">
       
-      {/* Fondo Tecnológico */}
+      
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_50%,rgba(0,0,0,0.6)),linear-gradient(to_right,transparent_50%,rgba(0,0,0,0.6))] bg-[size:20px_20px] opacity-20 pointer-events-none"></div>
       
-      {/* --- HOLOGRAMA SVG --- */}
+      
       <div className="relative w-32 h-32 flex items-center justify-center z-10 mt-2">
-         {/* Círculos Giratorios */}
+         
          <svg className="absolute inset-0 w-full h-full animate-spin-slow" viewBox="0 0 100 100" style={{ animationDuration: rotationSpeed }}>
             <circle cx="50" cy="50" r="48" stroke={theme.secondary} strokeWidth="0.5" fill="none" strokeDasharray="4 4" opacity="0.3" />
             <circle cx="50" cy="50" r="40" stroke={theme.primary} strokeWidth="1" fill="none" strokeDasharray="20 15" opacity="0.6" />
             <circle cx="50" cy="50" r="32" stroke={theme.secondary} strokeWidth="2" fill="none" strokeDasharray="60 100" opacity="0.8" />
          </svg>
          
-         {/* Núcleo Central */}
+         
          <div className="relative z-20 flex flex-col items-center justify-center w-20 h-20 bg-[#0a0f1e] rounded-full border border-slate-700/50 backdrop-blur-sm shadow-[0_0_30px_rgba(0,0,0,0.5)]">
              <div className="absolute inset-0 rounded-full opacity-20 animate-pulse" style={{ backgroundColor: theme.primary }}></div>
              <span className="text-2xl font-bold font-mono relative z-10" style={{ color: theme.primary, textShadow: `0 0 15px ${theme.shadow}` }}>
@@ -99,7 +98,7 @@ export default function ClientHealthDNA({ deals, activities, totalRevenue }: Cli
          </div>
       </div>
 
-      {/* --- DIAGNÓSTICO --- */}
+      
       <div className="text-center z-10 mt-5 w-full">
           <div className="inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 mb-2 backdrop-blur-md">
             <span style={{ color: theme.primary }}>{theme.icon}</span>
@@ -114,7 +113,7 @@ export default function ClientHealthDNA({ deals, activities, totalRevenue }: Cli
           </div>
       </div>
 
-      {/* Línea de escaneo decorativa */}
+      
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-scanline pointer-events-none"></div>
     </div>
   );

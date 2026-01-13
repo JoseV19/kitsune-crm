@@ -124,7 +124,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
 
       </div>
 
-      {/* GRID DE ESTADÍSTICAS (KPIs) */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         <StatCard 
           title="Ingresos Totales" 
@@ -192,7 +192,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
               </div>
            </div>
 
-           {/* MENSAJE DEL DÍA */}
+           
            <div className="bg-gradient-to-r from-slate-900 to-slate-900/50 border-l-4 border-kiriko-teal p-6 rounded-r-xl">
               <p className="text-xs font-bold text-kiriko-teal uppercase mb-2 flex items-center gap-2">
                  <Clock size={12}/> Recordatorio del Sistema
@@ -203,7 +203,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
            </div>
         </div>
 
-        {/* COLUMNA DER */}
+        
         <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 h-fit">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
                 <CalendarDays size={14}/> Estado del Sistema
@@ -226,7 +226,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
   );
 }
 
-// Sub-componentes (Sin cambios)
+
 function StatCard({ title, value, icon, subtext, trend, delay }: any) {
     return (
         <div 

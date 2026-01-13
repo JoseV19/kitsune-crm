@@ -33,7 +33,7 @@ export default function NewClientModal({
   const [jobTitle, setJobTitle] = useState("");
   const [phone, setPhone] = useState("");
 
-  // --- NUEVO: ESTADO PARA LA IMAGEN ---
+  
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -53,7 +53,7 @@ export default function NewClientModal({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setLogoFile(file);
-      setPreviewUrl(URL.createObjectURL(file)); // Vista previa inmediata
+      setPreviewUrl(URL.createObjectURL(file)); 
     }
   };
 
@@ -65,24 +65,24 @@ export default function NewClientModal({
     let finalLogoUrl = null;
 
     try {
-      // 1. SUBIR LOGO (Si el usuario seleccionó uno)
+      
       if (logoFile) {
         const fileExt = logoFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${fileExt}`; // Nombre único
+        const fileName = `${Date.now()}.${fileExt}`; 
         const { error: uploadError } = await supabase.storage
-          .from("logos") // <--- TU BUCKET DE SUPABASE
+          .from("logos") 
           .upload(fileName, logoFile);
 
         if (uploadError) throw uploadError;
 
-        // Obtener la URL pública para guardarla
+        
         const {
           data: { publicUrl },
         } = supabase.storage.from("logos").getPublicUrl(fileName);
         finalLogoUrl = publicUrl;
       }
 
-      // 2. CREAR CLIENTE
+      
       const { data: newClient, error: clientError } = await supabase
         .from("clients")
         .insert([
@@ -92,7 +92,7 @@ export default function NewClientModal({
             phone,
             last_name: lastName,
             job_title: jobTitle,
-            logo_url: finalLogoUrl, // <--- GUARDAMOS LA URL AQUÍ
+            logo_url: finalLogoUrl, 
           },
         ])
         .select()
@@ -100,7 +100,7 @@ export default function NewClientModal({
 
       if (clientError) throw clientError;
 
-      // 3. CREAR OPORTUNIDAD AUTOMÁTICA
+      
       const { error: dealError } = await supabase.from("deals").insert([
         {
           title: `Oportunidad: ${fullName}`,
@@ -161,7 +161,7 @@ export default function NewClientModal({
           className="flex-1 flex flex-col overflow-hidden"
         >
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-            {/* --- CAMPO DE LOGO (NUEVO) --- */}
+            
             <div className="flex justify-center mb-4">
               <div className="relative group cursor-pointer">
                 <input

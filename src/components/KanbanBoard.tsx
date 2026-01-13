@@ -19,7 +19,7 @@ const STAGE_ORDER: DealStage[] = ['prospect', 'qualified', 'meeting', 'negotiati
 
 interface Attachment { id: string; name: string; size: number; type: string; url: string; created_at: string; }
 
-// Interfaz para el resumen de productos en la tarjeta
+
 interface ItemSummary {
     quantity: number;
     product: { name: string } | null;
@@ -29,7 +29,7 @@ interface KanbanTask extends Deal {
   files: Attachment[]; 
   tags: string[];
   client_data?: { name: string; logo_url?: string } | null;
-  // NUEVO: Array de items para mostrar "700x O-Rings"
+  
   deal_items?: ItemSummary[]; 
 }
 
@@ -51,7 +51,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const fetchDeals = async () => {
-    // 1. MODIFICAMOS LA CONSULTA PARA TRAER LOS PRODUCTOS
+    
     const { data, error } = await supabase
       .from('deals')
       .select(`
@@ -81,7 +81,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                 files: Array.isArray(deal.files) ? deal.files : [], 
                 tags: Array.isArray(deal.tags) ? deal.tags : ['Nuevo'], 
                 client_data: deal.clients,
-                deal_items: deal.deal_items // Asignamos los items traídos
+                deal_items: deal.deal_items 
             });
         }
     });
@@ -238,7 +238,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                         ) : (<span className="flex items-center gap-1 text-[11px] text-slate-600 italic"><Building size={10}/> Sin Asignar</span>)}
                     </div>
 
-                    {/* --- NUEVO: RESUMEN DE PRODUCTOS ("700x O-RINGS") --- */}
+                    
                     {task.deal_items && task.deal_items.length > 0 && (
                         <div className="mb-3 px-2 py-1.5 bg-slate-950/60 rounded border border-slate-800 flex items-center gap-2 overflow-hidden">
                             <Package size={10} className="text-kiriko-teal flex-shrink-0" />
@@ -251,7 +251,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
                             )}
                         </div>
                     )}
-                    {/* ----------------------------------------------------- */}
+                    
 
                     <div className="flex flex-wrap gap-1 mb-2">
                         {task.tags?.map((tag, i) => (

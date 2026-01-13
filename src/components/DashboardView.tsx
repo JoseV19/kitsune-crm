@@ -7,10 +7,10 @@ import {
 } from 'recharts';
 import { TrendingUp, Wallet, Package, AlertCircle, Loader2, Layers } from 'lucide-react';
 
-// Colores del tema Kitsune para gráficos
+
 const CHART_COLORS = ['#2dd4bf', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444', '#10b981'];
 
-// Configuración de etapas para las tarjetas (Mismos colores que Kanban)
+
 const STAGE_CONFIG = [
     { id: 'prospect', label: 'PROSPECTOS', color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5' },
     { id: 'qualified', label: 'CALIFICADOS', color: 'text-teal-400', border: 'border-teal-500/20', bg: 'bg-teal-500/5' },
@@ -22,12 +22,12 @@ const STAGE_CONFIG = [
 export default function DashboardView() {
   const [loading, setLoading] = useState(true);
   
-  // Datos para los gráficos
+  
   const [funnelData, setFunnelData] = useState<any[]>([]);
   const [salesTrend, setSalesTrend] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   
-  // Datos para las tarjetas de etapas (El desglose que pediste)
+  
   const [stageStats, setStageStats] = useState<Record<string, { count: number, value: number }>>({});
 
   // KPIs Generales
@@ -47,10 +47,10 @@ export default function DashboardView() {
 
     if (!deals || !items) { setLoading(false); return; }
 
-    // --- 1. PROCESAMIENTO: DESGLOSE POR ETAPA (Tarjetas) ---
+   
     const statsByStage: Record<string, { count: number, value: number }> = {};
     
-    // Inicializar en 0 para que siempre aparezcan todas las tarjetas
+    
     STAGE_CONFIG.forEach(s => statsByStage[s.id] = { count: 0, value: 0 });
 
     deals.forEach(d => {
@@ -60,14 +60,14 @@ export default function DashboardView() {
     });
     setStageStats(statsByStage);
 
-    // --- 2. PROCESAMIENTO: GRÁFICO EMBUDO ---
+    
     const funnel = Object.keys(statsByStage).map(key => ({ 
         name: formatStageName(key), 
         value: statsByStage[key].count 
     }));
     setFunnelData(funnel);
 
-    // --- 3. PROCESAMIENTO: TENDENCIA DE VENTAS ---
+    
     const salesMap: Record<string, number> = {};
     deals.filter(d => d.stage === 'won').forEach(d => {
         const month = new Date(d.created_at).toLocaleDateString('es-GT', { month: 'short' }); 
@@ -76,7 +76,7 @@ export default function DashboardView() {
     const sales = Object.keys(salesMap).map(key => ({ name: key, total: salesMap[key] }));
     setSalesTrend(sales);
 
-    // --- 4. PROCESAMIENTO: TOP PRODUCTOS ---
+    
     const prodMap: Record<string, number> = {};
     items.forEach((item: any) => {
         const pName = item.product?.name || 'Desconocido';
@@ -101,7 +101,7 @@ export default function DashboardView() {
 
   const formatStageName = (stageId: string) => {
      const found = STAGE_CONFIG.find(s => s.id === stageId);
-     return found ? found.label.split(' ')[0] : stageId; // Retorna solo la primera palabra para el gráfico
+     return found ? found.label.split(' ')[0] : stageId; 
   };
 
   const formatMoney = (val: number) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', maximumFractionDigits: 0 }).format(val);

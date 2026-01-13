@@ -4,14 +4,14 @@ import {
   LogOut,
   Plus,
   Package,
-  Home, // <--- 1. NUEVO ICONO
+  Home, 
   Settings
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 interface SidebarProps {
-  currentView?: "home" | "kanban" | "dashboard"; // <--- 2. AHORA SON 3 OPCIONES
+  currentView?: "home" | "kanban" | "dashboard"; 
   onChangeView?: (view: "home" | "kanban" | "dashboard") => void;
   user: { name: string; role: string; avatar: string };
   onNewClient: () => void;
@@ -28,7 +28,7 @@ export default function Sidebar({
   onLogout,
 }: SidebarProps) {
   
-  // 3. DEFINIMOS LOS 3 ÍTEMS DEL MENÚ
+  
   const menuItems = [
     { id: "home", label: "Inicio", icon: <Home size={20} /> },
     { id: "kanban", label: "Tablero", icon: <KanbanSquare size={20} /> },
