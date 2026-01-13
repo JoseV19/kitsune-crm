@@ -9,7 +9,17 @@ import {
   Trash2, Loader2, Edit2, Save as SaveIcon, Settings, Info, 
   Briefcase, MessageCircle, FileText, User, Users, Sparkles, Activity as ActivityIcon
 } from 'lucide-react';
-import { Client, Deal, Activity, Contact, OrganizationSettings } from '@/types/crm';
+import { Client, Deal, Activity, Contact } from '@/types/crm';
+
+interface OrganizationSettings {
+  id: string;
+  company_name: string;
+  address: string;
+  email: string;
+  phone: string;
+  tax_id: string;
+  logo_url?: string;
+}
 
 interface ClientDetailsPanelProps {
   clientId: string | null;
@@ -26,7 +36,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [orgSettings, setOrgSettings] = useState<OrganizationSettings | null>(null);
   
-  
   const [activeTab, setActiveTab] = useState<'activities' | 'contacts'>('activities');
   const [newNote, setNewNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,10 +43,8 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
- 
   const [selectedDealForEdit, setSelectedDealForEdit] = useState<Deal | null>(null);
   const [isAddingContact, setIsAddingContact] = useState(false);
-  
   
   const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' });
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', job_title: '' });
@@ -90,7 +97,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     setContacts(data || []);
   };
 
-  
   const aiSummary = useMemo(() => {
     if (!client) return "Analizando datos del cliente...";
     const activeDeals = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
@@ -118,7 +124,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     return text;
   }, [client, deals, activities]);
 
-  
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId) return;
@@ -185,7 +190,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     window.open(url, '_blank');
   };
 
-  // --- PDF ---
   const handleGeneratePDF = async () => {
     if (!client) return;
     const configToUse = orgSettings || {
@@ -243,7 +247,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         <div className="flex-1 flex overflow-hidden relative">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(45,212,191,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(45,212,191,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none z-0"></div>
 
-         
           <div className="w-[320px] bg-slate-950/80 border-r border-slate-800 overflow-y-auto custom-scrollbar p-6 z-10">
             
             <div className="mb-4 animate-in zoom-in-95 duration-500">
@@ -318,7 +321,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
             </div>
           </div>
 
-          
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 z-10 bg-[#020617]">
             <div className="flex gap-6 border-b border-slate-800 mb-4">
               <button 
@@ -338,7 +340,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
             {activeTab === 'activities' && (
               <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                 
-                
                 <div className="bg-slate-900/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden relative group mb-6">
                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-kiriko-teal/5 opacity-50 group-hover:opacity-80 transition-opacity"></div>
                    <div className="p-6 relative">
@@ -354,7 +355,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
                    </div>
                 </div>
 
-                {/* --- FORMULARIO DE NOTAS --- */}
                 <form onSubmit={handleAddNote} className="bg-slate-900/50 rounded-xl border border-slate-800 p-4 shadow-sm relative focus-within:border-kiriko-teal/50 transition-colors mb-6">
                     <textarea 
                       id="note-input"
@@ -376,7 +376,6 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
                     </div>
                 </form>
 
-                {/* --- LISTA DE ACTIVIDADES --- */}
                 <div className="space-y-4 pb-10 relative">
                   <div className="absolute left-4 top-2 bottom-2 w-[1px] bg-slate-800 z-0"></div>
                   
