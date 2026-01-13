@@ -9,7 +9,6 @@ import ClientDetailsPanel from "@/components/ClientDetailsPanel";
 import NewClientModal from "@/components/NewClientModal";
 import { ProfileModal } from "@/components/ProfileModal";
 import WelcomeScreen from "@/components/WelcomeScreen"; 
-// 1. RE-IMPORTAMOS TU DASHBOARD VIEW ANTIGUO
 import DashboardView from "@/components/DashboardView"; 
 import { Search } from "lucide-react"; 
 
@@ -28,7 +27,7 @@ export default function Home() {
     avatar: "",
   });
 
-  // 2. AHORA TENEMOS 3 ESTADOS POSIBLES
+  
   const [currentView, setCurrentView] = useState<"home" | "kanban" | "dashboard">("home"); 
   
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
@@ -76,7 +75,7 @@ export default function Home() {
   if (isLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">Iniciando Kitsune CRM...</div>;
   if (!isAuthenticated) return <LoginPage onLogin={handleLogin} />;
 
-  // TITULO DINÁMICO SEGÚN LA VISTA
+ 
   const getPageTitle = () => {
     switch (currentView) {
       case 'home': return 'Centro de Comando';
@@ -139,7 +138,7 @@ export default function Home() {
 
         <div className="flex-1 overflow-hidden px-8 pb-4 relative">
           
-          {/* 3. SWITCH PARA MOSTRAR LA VISTA CORRECTA */}
+          
           
           {currentView === "home" && (
              <WelcomeScreen 
