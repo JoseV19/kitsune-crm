@@ -5,7 +5,8 @@ import {
   Plus,
   Package,
   Home, 
-  Settings
+  Settings,
+  Users
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -100,6 +101,17 @@ export default function Sidebar({
             <span className="text-slate-500 group-hover:text-white"><Package size={20} /></span>
             <span className="text-sm font-bold">Catálogo</span>
         </Link>
+
+        {/* USUARIOS - Solo para propietarios */}
+        {user.role === 'Propietario' && (
+          <Link 
+            href="/users" 
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group text-slate-400 hover:bg-white/5 hover:text-white"
+          >
+              <span className="text-slate-500 group-hover:text-white"><Users size={20} /></span>
+              <span className="text-sm font-bold">Usuarios</span>
+          </Link>
+        )}
         
         {/* CONFIGURACIÓN */}
         <Link 

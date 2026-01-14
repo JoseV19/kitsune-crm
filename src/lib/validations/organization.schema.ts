@@ -11,7 +11,7 @@ export const organizationSchema = z.object({
     .max(50, 'El slug no puede exceder 50 caracteres')
     .regex(/^[a-z0-9-]+$/, 'El slug solo puede contener letras minúsculas, números y guiones'),
   logo_url: z.string().url().optional().nullable(),
-  logo_background_color: z.enum(['white', 'black']).default('white'),
+  logo_background_color: z.enum(['white', 'black']),
   domain: z.string().url().optional().nullable(),
 });
 

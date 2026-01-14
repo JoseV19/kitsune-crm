@@ -30,7 +30,34 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         } else {
             // --- LOGIN ---
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) throw error;
+            
+            // If login fails, check if user exists and needs to set password
+            if (error) {
+              // Check if this is a user without password
+              try {
+                const checkResponse = await fetch('/api/check-user', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email }),
+                });
+
+                if (checkResponse.ok) {
+                  const checkData = await checkResponse.json();
+                  
+                  // If user exists but needs to set password, redirect to set-password page
+                  if (checkData.exists && checkData.needsPassword) {
+                    router.push(`/set-password?email=${encodeURIComponent(email)}`);
+                    return;
+                  }
+                }
+              } catch (checkError) {
+                // If check fails, continue with normal error handling
+                console.error('Error checking user:', checkError);
+              }
+              
+              // If not a password setup case, show normal error
+              throw error;
+            }
 
             if (!data.user) {
               throw new Error('Error al iniciar sesión');

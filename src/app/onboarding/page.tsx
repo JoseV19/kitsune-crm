@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createOrganizationSchema, type CreateOrganizationFormData } from '@/lib/validations/organization.schema';
-import { createOrganization } from '@/lib/services/organization.service';
-import { generateSlug, checkSlugAvailability } from '@/lib/utils/slug-generator';
+import { createOrganization, checkSlugAvailability } from '@/lib/services/organization.service';
+import { generateSlug } from '@/lib/utils/slug-generator';
 import { supabase } from '@/lib/services/supabase/client';
 import { storage } from '@/lib/services/supabase/storage.service';
 import { Loader2, Upload, Image as ImageIcon, Building2, Globe } from 'lucide-react';
@@ -31,6 +31,9 @@ export default function OnboardingPage() {
   } = useForm<CreateOrganizationFormData>({
     resolver: zodResolver(createOrganizationSchema),
     defaultValues: {
+      name: '',
+      slug: '',
+      logo_url: null,
       logo_background_color: 'white',
     },
   });

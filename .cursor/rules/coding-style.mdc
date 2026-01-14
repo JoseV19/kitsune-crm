@@ -100,3 +100,7 @@ const searchParams = await props.searchParams
 
 
 Follow Next.js docs for Data Fetching, Rendering, and Routing.
+
+
+### Zod usage
+- `z.string().email()` is deprecated, use `z.email()` instead
