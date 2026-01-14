@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { supabase } from '@/lib/SupabaseClient';
 import { Loader2, ShieldCheck, Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
-// AGREGAMOS ESTO: Definir qué recibe el componente
+
 interface LoginPageProps {
   onLogin: (name: string, role: string) => void;
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) { // RECIBIMOS onLogin aquí
+export function LoginPage({ onLogin }: LoginPageProps) { 
   const [loading, setLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
@@ -31,7 +31,7 @@ export function LoginPage({ onLogin }: LoginPageProps) { // RECIBIMOS onLogin aq
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
 
-            // ¡CONEXIÓN REAL!: Avisamos al page.tsx que ya entramos
+            
             const name = data.user?.email?.split('@')[0] || 'Agente';
             onLogin(name, 'Senior Operative'); 
         }

@@ -9,31 +9,62 @@ export type DealStage =
   | 'negotiation'
   | 'won'
   | 'lost';
-
-// 2. Definición de Cliente (ACTUALIZADA)
 export interface Client {
   id: string;
-  name: string;
-  contact_person?: string | null;
-  email?: string | null;
-  phone?: string | null;
+  created_at: string;
+  name: string; 
   logo_url?: string | null;
   notes?: string | null;
   
-  // --- CAMPOS NUEVOS QUE FALTABAN ---
-  job_title?: string | null;  // <--- Esto arregla el error rojo
+  phone?: string | null;       
+  phone_pbx?: string | null;  
+  address?: string | null;    
+  website?: string | null;    
+  email?: string | null;      
+  
+  contact_person?: string | null; 
+  job_title?: string | null; 
   last_name?: string | null;
   owner_id?: string | null;
-  // ----------------------------------
-
-  created_at: string;
 }
 
-// 3. Definición de Oportunidad (Deal)
+export interface Contact {
+  id: string;
+  client_id: string; 
+  created_at: string;
+  name: string;       
+  role?: string | null; 
+  email?: string | null;
+  phone?: string | null; 
+  is_primary?: boolean;  
+}
+
+export interface Product {
+  id: string;
+  created_at: string;
+  name: string;        
+  description?: string | null;
+  sku?: string | null; 
+  unit_price: number;  
+  image_url?: string | null;
+}
+
+export interface DealItem {
+  id: string;
+  deal_id: string;
+  product_id: string;
+  quantity: number;    
+  unit_price: number;  
+  total_price: number; 
+  
+  product?: Product; // Opcional: Para cuando hacemos joins
+}
+
 export interface Deal {
   id: string;
+  created_at: string;
   title: string;
-  value: number;
+  value: number; 
   currency: 'GTQ' | 'USD';
   stage: DealStage;
   priority: 'low' | 'medium' | 'high';
@@ -41,14 +72,11 @@ export interface Deal {
   description?: string | null;
   files?: any[];
   tags?: string[];
-  
   client_id?: string | null;
-  created_at: string;
+
+  items?: DealItem[]; 
 }
 
-
-
-// 4. Definición de Actividad / Nota
 export interface Activity {
   id: string;
   client_id: string;
@@ -57,3 +85,16 @@ export interface Activity {
   author_name?: string;
   created_at: string;
 }
+
+
+export interface OrganizationSettings {
+  id: string;
+  company_name: string;
+  tax_id?: string | null; // NIT
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+}
+
