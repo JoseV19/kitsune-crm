@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { CustomCursor } from "@/components/CustomCursor"; 
-import { SakuraBackground } from "@/components/SakuraBackground"; 
+import { CustomCursor } from "@/components/custom-cursor"; 
+import { SakuraBackground } from "@/components/sakura-background";
+import { OrganizationProviderWrapper } from "@/components/organization-provider-wrapper";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -25,9 +27,11 @@ export default function RootLayout({
         {/* 2. FONDO ANIMADO DE PÉTALOS */}
         <SakuraBackground />
         
-        <div className="relative z-10">
-            {children}
-        </div>
+        <OrganizationProviderWrapper>
+          <div className="relative z-10">
+              {children}
+          </div>
+        </OrganizationProviderWrapper>
       </body>
     </html>
   );

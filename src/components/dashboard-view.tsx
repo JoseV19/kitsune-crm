@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/SupabaseClient';
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
+import { supabase } from '@/lib/services/supabase/client'; // Still needed for complex queries
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area
@@ -20,6 +22,7 @@ const STAGE_CONFIG = [
 ];
 
 export default function DashboardView() {
+  const organizationId = useOrganizationId();
   const [loading, setLoading] = useState(true);
   
   
@@ -38,12 +41,28 @@ export default function DashboardView() {
   });
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationId) {
+      fetchAnalytics();
+    }
+  }, [organizationId]);
 
   const fetchAnalytics = async () => {
-    const { data: deals } = await supabase.from('deals').select('*');
-    const { data: items } = await supabase.from('deal_items').select('*, product:products(name)');
+    if (!organizationId) return;
+    
+    // Use direct supabase for complex query with joins
+    const { data: deals } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('organization_id', organizationId);
+    const { data: items } = await supabase
+      .from('deal_items')
+      .select('*, product:products(name)');
 
     if (!deals || !items) { setLoading(false); return; }
 

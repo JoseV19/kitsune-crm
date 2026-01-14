@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/SupabaseClient";
-import Sidebar from "@/components/Sidebar";
-import KanbanBoard from "@/components/KanbanBoard";
-import { LoginPage } from "@/components/LoginPage";
-import ClientDetailsPanel from "@/components/ClientDetailsPanel";
-import NewClientModal from "@/components/NewClientModal";
-import { ProfileModal } from "@/components/ProfileModal";
-import WelcomeScreen from "@/components/WelcomeScreen"; 
-import DashboardView from "@/components/DashboardView"; 
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/services/supabase/client";
+import { useOrganization } from "@/lib/contexts/organization-context";
+import Sidebar from "@/components/sidebar";
+import KanbanBoard from "@/components/kanban-board";
+import { LoginPage } from "@/components/login-page";
+import ClientDetailsPanel from "@/components/client-details-panel";
+import NewClientModal from "@/components/new-client-modal";
+import { ProfileModal } from "@/components/profile-modal";
+import WelcomeScreen from "@/components/welcome-screen"; 
+import DashboardView from "@/components/dashboard-view"; 
 import { Search } from "lucide-react"; 
 
 interface UserData {
@@ -19,11 +21,13 @@ interface UserData {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const { organization, isLoading: orgLoading } = useOrganization();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserData>({
-    name: "Jose Vielman",
-    role: "Senior Operative",
+    name: "Usuario",
+    role: "Miembro",
     avatar: "",
   });
 
@@ -39,13 +43,39 @@ export default function Home() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const savedUser = localStorage.getItem("kitsune_user");
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-          setIsAuthenticated(true);
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (error || !authUser) {
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          return;
+        }
+
+        setIsAuthenticated(true);
+
+        // Get user profile for name and role
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('full_name, role')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profile) {
+          setUser({
+            name: profile.full_name || authUser.email?.split('@')[0] || 'Usuario',
+            role: profile.role === 'owner' ? 'Propietario' : profile.role === 'admin' ? 'Administrador' : 'Miembro',
+            avatar: authUser.user_metadata?.avatar_url || '',
+          });
+        } else {
+          setUser({
+            name: authUser.email?.split('@')[0] || 'Usuario',
+            role: 'Miembro',
+            avatar: '',
+          });
         }
       } catch (e) {
         console.error("Error al cargar sesión", e);
+        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }
@@ -53,18 +83,17 @@ export default function Home() {
     checkSession();
   }, []);
 
-  const handleLogin = (name: string, role: string) => {
-    const newUser = { ...user, name, role };
-    setUser(newUser);
-    setIsAuthenticated(true);
-    localStorage.setItem("kitsune_user", JSON.stringify(newUser));
-  };
+  // Redirect to onboarding if no organization
+  useEffect(() => {
+    if (!orgLoading && !isLoading && isAuthenticated && !organization) {
+      router.push('/onboarding');
+    }
+  }, [orgLoading, isLoading, isAuthenticated, organization, router]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setIsAuthenticated(false);
-    localStorage.removeItem("kitsune_user");
-    window.location.reload();
+    router.push('/');
   };
 
   const handleOpenClient = (clientId: string) => {
@@ -72,8 +101,25 @@ export default function Home() {
     setIs360Open(true);
   };
 
-  if (isLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">Iniciando Kitsune CRM...</div>;
-  if (!isAuthenticated) return <LoginPage onLogin={handleLogin} />;
+  if (isLoading || orgLoading) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
+        Iniciando Kitsune CRM...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  if (!organization) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
+        Redirigiendo...
+      </div>
+    );
+  }
 
  
   const getPageTitle = () => {

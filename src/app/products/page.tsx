@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/SupabaseClient';
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
+import { storage } from '@/lib/services/supabase/storage.service';
 import { Product } from '@/types/crm';
 import { 
   Search, Plus, Package, Edit2, Trash2, X, 
@@ -9,6 +11,7 @@ import {
 import Link from 'next/link';
 
 export default function ProductsPage() {
+  const organizationId = useOrganizationId();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,14 +23,29 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationId) {
+      fetchProducts();
+    }
+  }, [organizationId]);
 
   const fetchProducts = async () => {
     setIsLoading(true);
-    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (data) setProducts(data);
-    setIsLoading(false);
+    try {
+      const data = await db.getProducts();
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -37,39 +55,41 @@ export default function ProductsPage() {
     try {
       let finalImageUrl = currentProduct.image_url;
 
-      // 1. Si hay nueva imagen, subirla al Bucket 'products'
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('products')
-          .upload(fileName, imageFile);
-
-        if (uploadError) throw uploadError;
-
-        // Obtener URL pública
-        const { data: publicUrlData } = supabase.storage
-          .from('products')
-          .getPublicUrl(fileName);
-        
-        finalImageUrl = publicUrlData.publicUrl;
+      // 1. Si hay nueva imagen, subirla
+      if (imageFile && currentProduct.id) {
+        finalImageUrl = await storage.uploadProductImage(imageFile, currentProduct.id);
+      } else if (imageFile) {
+        // For new products, we'll need to create it first, then update with image
+        // For now, use a temp approach
+        const tempId = `temp-${Date.now()}`;
+        finalImageUrl = await storage.uploadProductImage(imageFile, tempId);
       }
 
       // 2. Guardar en Base de Datos
       const productData = {
-        name: currentProduct.name,
-        description: currentProduct.description,
-        sku: currentProduct.sku,
-        unit_price: currentProduct.unit_price,
-        image_url: finalImageUrl
-      };
+        name: currentProduct.name!,
+        description: currentProduct.description || null,
+        sku: currentProduct.sku || null,
+        unit_price: currentProduct.unit_price!,
+        image_url: finalImageUrl || null,
+      } as Omit<Product, 'id' | 'created_at' | 'organization_id'>;
 
       if (currentProduct.id) {
         // Actualizar
-        await supabase.from('products').update(productData).eq('id', currentProduct.id);
+        await db.updateProduct(currentProduct.id, productData);
+        // If we uploaded with temp ID, re-upload with real ID
+        if (imageFile && finalImageUrl?.includes('temp-')) {
+          const realImageUrl = await storage.uploadProductImage(imageFile, currentProduct.id);
+          await db.updateProduct(currentProduct.id, { image_url: realImageUrl });
+        }
       } else {
         // Crear nuevo
-        await supabase.from('products').insert([productData]);
+        const newProduct = await db.createProduct(productData);
+        // If we uploaded with temp ID, re-upload with real ID
+        if (imageFile && finalImageUrl?.includes('temp-')) {
+          const realImageUrl = await storage.uploadProductImage(imageFile, newProduct.id);
+          await db.updateProduct(newProduct.id, { image_url: realImageUrl });
+        }
       }
 
       // 3. Limpiar y recargar
@@ -79,7 +99,7 @@ export default function ProductsPage() {
       fetchProducts();
 
     } catch (error: any) {
-      alert('Error al guardar: ' + error.message);
+      alert('Error al guardar: ' + (error.message || 'Ocurrió un problema'));
     } finally {
       setIsSaving(false);
     }
@@ -87,8 +107,12 @@ export default function ProductsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este producto del catálogo?')) return;
-    await supabase.from('products').delete().eq('id', id);
-    fetchProducts();
+    try {
+      await db.deleteProduct(id);
+      fetchProducts();
+    } catch (error: any) {
+      alert('Error al eliminar: ' + (error.message || 'Ocurrió un problema'));
+    }
   };
 
   const openEdit = (prod: Product) => {

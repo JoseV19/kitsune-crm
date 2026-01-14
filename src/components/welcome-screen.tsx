@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/SupabaseClient';
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
+import { supabase } from '@/lib/services/supabase/client'; // Still needed for count queries
 import { 
   TrendingUp, Users, Package, ArrowRight, 
   Zap, Clock, Target, CalendarDays
@@ -15,12 +17,19 @@ interface DashboardStats {
 }
 
 export default function WelcomeScreen({ userName, onNavigateToKanban }: { userName: string, onNavigateToKanban: () => void }) {
+  const organizationId = useOrganizationId();
   const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, activeDeals: 0, totalClients: 0, productsCount: 0 });
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState('');
   
   // Estado para el reloj
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -33,20 +42,42 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
     else if (hour < 18) setGreeting('Buenas tardes');
     else setGreeting('Buenas noches');
 
-    fetchStats();
+    if (organizationId) {
+      fetchStats();
+    }
 
     return () => clearInterval(timer);
-  }, []);
+  }, [organizationId]);
 
   const fetchStats = async () => {
-    const { data: wonDeals } = await supabase.from('deals').select('value').eq('stage', 'won');
-    const revenue = wonDeals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
-    const { count: dealsCount } = await supabase.from('deals').select('*', { count: 'exact', head: true }).not('stage', 'in', '("won","lost")');
-    const { count: clientsCount } = await supabase.from('clients').select('*', { count: 'exact', head: true });
-    const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true });
+    if (!organizationId) return;
+    
+    try {
+      // Get won deals for revenue
+      const allDeals = await db.getDeals();
+      const wonDeals = allDeals.filter(d => d.stage === 'won');
+      const revenue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+      
+      // Get active deals count
+      const activeDeals = allDeals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
+      
+      // Get clients count
+      const clients = await db.getClients();
+      
+      // Get products count
+      const products = await db.getProducts();
 
-    setStats({ totalRevenue: revenue, activeDeals: dealsCount || 0, totalClients: clientsCount || 0, productsCount: productsCount || 0 });
-    setLoading(false);
+      setStats({
+        totalRevenue: revenue,
+        activeDeals: activeDeals.length,
+        totalClients: clients.length,
+        productsCount: products.length
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatMoney = (amount: number) => {

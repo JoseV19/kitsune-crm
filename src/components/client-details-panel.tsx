@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/SupabaseClient';
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
+import { storage } from '@/lib/services/supabase/storage.service';
 // Importamos el generador actualizado
 import { generarPDFZionak } from '@/lib/pdfGenerator'; 
-import DealEditorModal from './DealEditorModal'; 
-import ClientHealthDNA from './ClientHealthDNA';
+import DealEditorModal from './deal-editor-modal'; 
+import ClientHealthDNA from './client-health-dna';
 import { 
   X, Phone, Mail, Plus, Send, MessageSquare, 
   Trash2, Loader2, Edit2, Save as SaveIcon, Settings, Info, 
@@ -31,7 +33,7 @@ interface ClientDetailsPanelProps {
 }
 
 export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClientDeleted }: ClientDetailsPanelProps) {
-  
+  const organizationId = useOrganizationId();
   const [client, setClient] = useState<Client | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -51,7 +53,36 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' });
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', job_title: '' });
 
-  const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('kitsune_user') || '{}').name || 'Usuario' : 'Usuario';
+  // Get current user from Supabase auth
+  const [currentUser, setCurrentUser] = useState('Usuario');
+
+  useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { supabase } = await import('@/lib/services/supabase/client');
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+          setCurrentUser(profile?.full_name || user.email?.split('@')[0] || 'Usuario');
+        }
+      } catch (error) {
+        console.error('Error getting user:', error);
+      }
+    };
+    getUser();
+  }, []);
 
   useEffect(() => {
     if (isOpen && clientId) {
@@ -63,40 +94,59 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   }, [isOpen, clientId]);
 
   const fetchOrgSettings = async () => {
-    const { data } = await supabase.from('organization_settings').select('*').single();
-    if (data) setOrgSettings(data);
+    try {
+      const data = await db.getOrganizationSettings();
+      if (data) setOrgSettings(data as OrganizationSettings);
+    } catch (error) {
+      console.error('Error fetching org settings:', error);
+    }
   };
 
   const fetchClientData = async (id: string) => {
-    const { data: clientData } = await supabase.from('clients').select('*').eq('id', id).single();
-    if (clientData) {
-      setClient(clientData);
-      setEditForm({ 
-        name: clientData.name || '', 
-        email: clientData.email || '', 
-        phone: clientData.phone || '', 
-        job_title: clientData.job_title || '' 
-      });
-    }
+    try {
+      const clientData = await db.getClientById(id);
+      if (clientData) {
+        setClient(clientData);
+        setEditForm({ 
+          name: clientData.name || '', 
+          email: clientData.email || '', 
+          phone: clientData.phone || '', 
+          job_title: clientData.job_title || '' 
+        });
+      }
 
-    const { data: dealsData } = await supabase.from('deals').select('*').eq('client_id', id);
-    setDeals(dealsData || []);
-    if (dealsData) {
-      const revenue = dealsData
+      // Get deals for this client
+      const allDeals = await db.getDeals();
+      const clientDeals = allDeals.filter(d => d.client_id === id);
+      setDeals(clientDeals);
+      
+      const revenue = clientDeals
         .filter(d => d.stage === 'won')
         .reduce((sum, d) => sum + (d.value || 0), 0);
       setTotalRevenue(revenue);
+    } catch (error) {
+      console.error('Error fetching client data:', error);
     }
   };
 
   const fetchActivities = async (id: string) => {
-    const { data } = await supabase.from('client_activities').select('*').eq('client_id', id).order('created_at', { ascending: false });
-    setActivities(data || []);
+    try {
+      const data = await db.getActivities(id);
+      setActivities(data);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      setActivities([]);
+    }
   };
 
   const fetchContacts = async (id: string) => {
-    const { data } = await supabase.from('contacts').select('*').eq('client_id', id).order('created_at', { ascending: true });
-    setContacts(data || []);
+    try {
+      const data = await db.getContacts(id);
+      setContacts(data);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      setContacts([]);
+    }
   };
 
   const aiSummary = useMemo(() => {
@@ -130,19 +180,19 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     e.preventDefault();
     if (!clientId) return;
     setIsSubmitting(true);
-    const { error } = await supabase.from('contacts').insert([{
-      client_id: clientId,
-      name: newContact.name,
-      role: newContact.role,
-      email: newContact.email,
-      phone: newContact.phone
-    }]);
-    if (!error) {
-        setNewContact({ name: '', role: '', email: '', phone: '' });
-        setIsAddingContact(false);
-        fetchContacts(clientId);
-    } else {
-        alert("Error al guardar contacto: " + error.message);
+    try {
+      await db.createContact({
+        client_id: clientId,
+        name: newContact.name,
+        role: newContact.role || null,
+        email: newContact.email || null,
+        phone: newContact.phone || null,
+      } as any);
+      setNewContact({ name: '', role: '', email: '', phone: '' });
+      setIsAddingContact(false);
+      fetchContacts(clientId);
+    } catch (error: any) {
+      alert("Error al guardar contacto: " + (error.message || "Ocurrió un problema"));
     }
     setIsSubmitting(false);
   };
@@ -150,12 +200,12 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   const handleSaveChanges = async () => {
     if (!clientId) return;
     setIsSaving(true);
-    const { error } = await supabase.from('clients').update(editForm).eq('id', clientId);
-    if (!error) {
+    try {
+      await db.updateClient(clientId, editForm as any);
       setClient(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
-    } else {
-      alert("Error al guardar: " + error.message);
+    } catch (error: any) {
+      alert("Error al guardar: " + (error.message || "Ocurrió un problema"));
     }
     setIsSaving(false);
   };
@@ -164,24 +214,31 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     e.preventDefault();
     if (!newNote.trim() || !clientId) return;
     setIsSubmitting(true);
-    const { error } = await supabase.from('client_activities').insert([
-        { client_id: clientId, type: 'note', content: newNote, author_name: currentUser }
-    ]);
-    if (error) {
-        alert("Error al guardar nota: " + error.message);
-    } else { 
-        setNewNote(''); 
-        fetchActivities(clientId);
+    try {
+      await db.createActivity({
+        client_id: clientId,
+        type: 'note',
+        content: newNote,
+        author_name: currentUser,
+      } as any);
+      setNewNote('');
+      fetchActivities(clientId);
+    } catch (error: any) {
+      alert("Error al guardar nota: " + (error.message || "Ocurrió un problema"));
     }
     setIsSubmitting(false);
   };
 
   const handleDelete = async () => {
-      if (!clientId) return;
-      if (confirm("¿Estás seguro de eliminar este cliente y todos sus datos?")) {
-          await supabase.from('clients').delete().eq('id', clientId);
-          onClientDeleted();
+    if (!clientId) return;
+    if (confirm("¿Estás seguro de eliminar este cliente y todos sus datos?")) {
+      try {
+        await db.deleteClient(clientId);
+        onClientDeleted();
+      } catch (error: any) {
+        alert("Error al eliminar: " + (error.message || "Ocurrió un problema"));
       }
+    }
   }
 
   const handleWhatsApp = () => {

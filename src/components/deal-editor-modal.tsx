@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/SupabaseClient';
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
 import { X, Plus, Trash2, Search, Calculator, Save, Package } from 'lucide-react';
 import { Deal, Product, DealItem } from '@/types/crm';
 
@@ -12,6 +13,7 @@ interface DealEditorModalProps {
 }
 
 export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: DealEditorModalProps) {
+  const organizationId = useOrganizationId();
   const [items, setItems] = useState<DealItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,73 +21,108 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
     if (isOpen && deal) {
       fetchItems();
-      
       fetchProducts();
     }
   }, [isOpen, deal]);
 
   const fetchItems = async () => {
-    const { data } = await supabase
-      .from('deal_items')
-      .select('*, product:products(name, sku)')
-      .eq('deal_id', deal.id);
-    setItems(data || []);
+    try {
+      const data = await db.getDealItems(deal.id);
+      setItems(data);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      setItems([]);
+    }
   };
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').limit(50);
-    setProducts(data || []);
+    try {
+      const data = await db.getProducts();
+      setProducts(data.slice(0, 50)); // Limit to 50
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts([]);
+    }
   };
 
   const handleAddItem = async (product: Product) => {
-    
     const exists = items.find(i => i.product_id === product.id);
-    if (exists) return alert("Este producto ya está en la lista.");
+    if (exists) {
+      alert("Este producto ya está en la lista.");
+      return;
+    }
 
-    const newItem = {
-      deal_id: deal.id,
-      product_id: product.id,
-      quantity: 1,
-      unit_price: product.unit_price,
-      
-    };
+    try {
+      const newItem = {
+        deal_id: deal.id,
+        product_id: product.id,
+        quantity: 1,
+        unit_price: product.unit_price,
+        total_price: product.unit_price,
+      };
 
-    const { data, error } = await supabase.from('deal_items').insert([newItem]).select('*, product:products(name)').single();
-    
-    if (error) {
-        alert("Error al agregar: " + error.message);
-    } else if (data) {
-        setItems([...items, data]);
-        updateDealTotal([...items, data]); 
-        setIsSearching(false); 
+      const data = await db.createDealItem(newItem);
+      const updatedItems = [...items, data];
+      setItems(updatedItems);
+      updateDealTotal(updatedItems);
+      setIsSearching(false);
+    } catch (error: any) {
+      alert("Error al agregar: " + (error.message || "Ocurrió un problema"));
     }
   };
 
   const handleUpdateQuantity = async (itemId: string, newQty: number) => {
     if (newQty < 1) return;
     
-    // Optimistic UI update
-    const updatedItems = items.map(i => i.id === itemId ? { ...i, quantity: newQty, total_price: newQty * i.unit_price } : i);
-    setItems(updatedItems);
+    try {
+      // Optimistic UI update
+      const updatedItems = items.map(i => 
+        i.id === itemId 
+          ? { ...i, quantity: newQty, total_price: newQty * i.unit_price } 
+          : i
+      );
+      setItems(updatedItems);
 
-    await supabase.from('deal_items').update({ quantity: newQty }).eq('id', itemId);
-    updateDealTotal(updatedItems);
+      await db.updateDealItem(itemId, { 
+        quantity: newQty, 
+        total_price: newQty * updatedItems.find(i => i.id === itemId)!.unit_price 
+      });
+      updateDealTotal(updatedItems);
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      // Revert optimistic update
+      fetchItems();
+    }
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    const updatedItems = items.filter(i => i.id !== itemId);
-    setItems(updatedItems);
-    await supabase.from('deal_items').delete().eq('id', itemId);
-    updateDealTotal(updatedItems);
+    try {
+      const updatedItems = items.filter(i => i.id !== itemId);
+      setItems(updatedItems);
+      await db.deleteDealItem(itemId);
+      updateDealTotal(updatedItems);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      // Revert optimistic update
+      fetchItems();
+    }
   };
 
   const updateDealTotal = async (currentItems: DealItem[]) => {
-    const total = currentItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    
-    
-    await supabase.from('deals').update({ value: total }).eq('id', deal.id);
+    try {
+      const total = currentItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+      await db.updateDeal(deal.id, { value: total });
+    } catch (error) {
+      console.error('Error updating deal total:', error);
+    }
   };
 
   const filteredProducts = products.filter(p => 

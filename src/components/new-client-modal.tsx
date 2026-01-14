@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/SupabaseClient";
+import { useOrganizationId } from "@/lib/contexts/organization-context";
+import { db } from "@/lib/services/supabase/database.service";
+import { storage } from "@/lib/services/supabase/storage.service";
 import {
   X,
   Save,
@@ -26,6 +28,7 @@ export default function NewClientModal({
   onClientCreated,
   currentUser,
 }: NewClientModalProps) {
+  const organizationId = useOrganizationId();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -36,6 +39,14 @@ export default function NewClientModal({
   
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Set organization context in services
+  useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -62,60 +73,53 @@ export default function NewClientModal({
     setLoading(true);
 
     const fullName = `${firstName} ${lastName}`.trim() || email.split("@")[0];
-    let finalLogoUrl = null;
+    let finalLogoUrl: string | null = null;
 
     try {
-      
-      if (logoFile) {
-        const fileExt = logoFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${fileExt}`; 
-        const { error: uploadError } = await supabase.storage
-          .from("logos") 
-          .upload(fileName, logoFile);
-
-        if (uploadError) throw uploadError;
-
-        
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("logos").getPublicUrl(fileName);
-        finalLogoUrl = publicUrl;
+      if (!organizationId) {
+        throw new Error('No se ha configurado la organización');
       }
 
-      
-      const { data: newClient, error: clientError } = await supabase
-        .from("clients")
-        .insert([
-          {
-            name: fullName,
-            email,
-            phone,
-            last_name: lastName,
-            job_title: jobTitle,
-            logo_url: finalLogoUrl, 
-          },
-        ])
-        .select()
-        .single();
+      // Upload logo if provided
+      if (logoFile) {
+        // We'll need a temporary client ID, so we'll create the client first, then update with logo
+        // Or we can use a temp ID for the upload path
+        const tempClientId = `temp-${Date.now()}`;
+        finalLogoUrl = await storage.uploadClientLogo(logoFile, tempClientId);
+      }
 
-      if (clientError) throw clientError;
+      // Create client
+      const newClient = await db.createClient({
+        name: fullName,
+        email: email || null,
+        phone: phone || null,
+        last_name: lastName || null,
+        job_title: jobTitle || null,
+        logo_url: finalLogoUrl,
+      } as any);
 
-      
-      const { error: dealError } = await supabase.from("deals").insert([
-        {
-          title: `Oportunidad: ${fullName}`,
-          value: 0,
-          currency: "GTQ",
-          stage: "prospect",
-          priority: "medium",
-          client_id: newClient.id,
-          description: `Cliente creado manualmente por ${
-            currentUser || "Admin"
-          }`,
-        },
-      ]);
+      // If we uploaded a logo with temp ID, re-upload with real client ID
+      if (logoFile && finalLogoUrl) {
+        try {
+          const realLogoUrl = await storage.uploadClientLogo(logoFile, newClient.id);
+          await db.updateClient(newClient.id, { logo_url: realLogoUrl });
+          finalLogoUrl = realLogoUrl;
+        } catch (logoError) {
+          console.warn('Error updating logo with real client ID:', logoError);
+          // Continue anyway, the temp logo URL will work
+        }
+      }
 
-      if (dealError) throw dealError;
+      // Create initial deal
+      await db.createDeal({
+        title: `Oportunidad: ${fullName}`,
+        value: 0,
+        currency: "GTQ",
+        stage: "prospect",
+        priority: "medium",
+        client_id: newClient.id,
+        description: `Cliente creado manualmente por ${currentUser || "Admin"}`,
+      } as any);
 
       onClientCreated();
       onClose();

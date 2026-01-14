@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/SupabaseClient'; 
+import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { db } from '@/lib/services/supabase/database.service';
+import { storage } from '@/lib/services/supabase/storage.service';
+import { supabase } from '@/lib/services/supabase/client'; // Still needed for complex queries
 import { Plus, Trash2, Building, Tag, Paperclip, Flag, Loader2, X, Upload, FileText, Package } from 'lucide-react';
 import { Deal, DealStage } from '@/types/crm';
 
@@ -42,6 +45,7 @@ interface KanbanBoardProps {
 }
 
 export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = '' }: KanbanBoardProps) {
+  const organizationId = useOrganizationId();
   const [columns, setColumns] = useState<Column[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,8 +54,17 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
   const [tempTag, setTempTag] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
 
+  useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+    }
+  }, [organizationId]);
+
   const fetchDeals = async () => {
+    if (!organizationId) return;
     
+    // Use direct supabase for complex query with joins
     const { data, error } = await supabase
       .from('deals')
       .select(`
@@ -62,6 +75,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
             product:products (name)
         )
       `)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) { console.error("Error:", error); return; }
@@ -109,23 +123,27 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
 
   // Lógica de Archivos
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files || !e.target.files[0] || !editingTask) return;
-      setUploadingFile(true);
-      const file = e.target.files[0];
-      const fileName = `${editingTask.task.id}/${Date.now()}_${file.name}`;
+    if (!e.target.files || !e.target.files[0] || !editingTask) return;
+    setUploadingFile(true);
+    const file = e.target.files[0];
 
-      try {
-          const { error: uploadError } = await supabase.storage.from('deal_attachments').upload(fileName, file);
-          if (uploadError) throw uploadError;
-          const { data: { publicUrl } } = supabase.storage.from('deal_attachments').getPublicUrl(fileName);
-          const newFile: Attachment = { id: fileName, name: file.name, size: file.size, type: file.type, url: publicUrl, created_at: new Date().toISOString() };
-          const newFiles = [...(editingTask.task.files || []), newFile];
-          setEditingTask({ ...editingTask, task: { ...editingTask.task, files: newFiles } });
-      } catch (error: any) {
-          alert('Error subiendo archivo: ' + error.message);
-      } finally {
-          setUploadingFile(false);
-      }
+    try {
+      const publicUrl = await storage.uploadDealAttachment(file, editingTask.task.id);
+      const newFile: Attachment = {
+        id: `${editingTask.task.id}/${Date.now()}_${file.name}`,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: publicUrl,
+        created_at: new Date().toISOString()
+      };
+      const newFiles = [...(editingTask.task.files || []), newFile];
+      setEditingTask({ ...editingTask, task: { ...editingTask.task, files: newFiles } });
+    } catch (error: any) {
+      alert('Error subiendo archivo: ' + (error.message || 'Ocurrió un problema'));
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   const handleRemoveFile = (fileId: string) => {
@@ -154,35 +172,70 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
     setColumns(newColumns);
     
     setIsSaving(true);
-    await supabase.from('deals').update({ stage: targetStage }).eq('id', taskId);
-    if (task.client_id) {
-        const oldS = STAGE_CONFIG[sourceStage].title; const newS = STAGE_CONFIG[targetStage].title;
-        await supabase.from('client_activities').insert([{ client_id: task.client_id, type: 'system', content: `🔄 Cambio de etapa: De "${oldS}" a "${newS}"`, author_name: 'Sistema 🤖' }]);
+    try {
+      await db.updateDeal(taskId, { stage: targetStage });
+      if (task.client_id) {
+        const oldS = STAGE_CONFIG[sourceStage].title;
+        const newS = STAGE_CONFIG[targetStage].title;
+        await db.createActivity({
+          client_id: task.client_id,
+          type: 'system',
+          content: `🔄 Cambio de etapa: De "${oldS}" a "${newS}"`,
+          author_name: 'Sistema 🤖',
+        } as any);
+      }
+    } catch (error) {
+      console.error('Error updating deal stage:', error);
     }
     setIsSaving(false);
   };
 
   const addTask = async (stage: DealStage) => {
-    const tempTitle = prompt("Título de la oportunidad:"); if (!tempTitle) return;
+    const tempTitle = prompt("Título de la oportunidad:");
+    if (!tempTitle) return;
     setIsSaving(true);
-    const { data } = await supabase.from('deals').insert([{ title: tempTitle, stage, value: 0, currency: 'GTQ', priority: 'medium' }]).select().single();
-    if (data) { fetchDeals(); }
+    try {
+      await db.createDeal({
+        title: tempTitle,
+        stage,
+        value: 0,
+        currency: 'GTQ',
+        priority: 'medium',
+      } as any);
+      fetchDeals();
+    } catch (error) {
+      console.error('Error creating deal:', error);
+    }
     setIsSaving(false);
   };
 
   const saveTaskLocal = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!editingTask) return; setIsSaving(true);
-    const { id, title, value, priority, expected_close_date, files, tags } = editingTask.task;
-    await supabase.from('deals').update({ title, value, priority, expected_close_date, files, tags }).eq('id', id);
-    fetchDeals(); setEditingTask(null); setIsSaving(false);
+    e.preventDefault();
+    if (!editingTask) return;
+    setIsSaving(true);
+    try {
+      const { id, title, value, priority, expected_close_date, files, tags } = editingTask.task;
+      await db.updateDeal(id, { title, value, priority, expected_close_date, files, tags } as any);
+      fetchDeals();
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error updating deal:', error);
+    }
+    setIsSaving(false);
   };
 
   const handleDeleteDeal = async () => {
-      if (!editingTask) return;
-      if (!window.confirm("¿Eliminar tarjeta?")) return;
-      setIsSaving(true);
-      await supabase.from('deals').delete().eq('id', editingTask.task.id);
-      fetchDeals(); setEditingTask(null); setIsSaving(false);
+    if (!editingTask) return;
+    if (!window.confirm("¿Eliminar tarjeta?")) return;
+    setIsSaving(true);
+    try {
+      await db.deleteDeal(editingTask.task.id);
+      fetchDeals();
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+    }
+    setIsSaving(false);
   };
 
   const formatMoney = (amount: number, currency: string) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: currency || 'GTQ' }).format(amount);

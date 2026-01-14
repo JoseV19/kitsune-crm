@@ -12,6 +12,7 @@ export type DealStage =
 export interface Client {
   id: string;
   created_at: string;
+  organization_id: string; // Multi-tenancy
   name: string; 
   logo_url?: string | null;
   notes?: string | null;
@@ -42,6 +43,7 @@ export interface Contact {
 export interface Product {
   id: string;
   created_at: string;
+  organization_id: string; // Multi-tenancy
   name: string;        
   description?: string | null;
   sku?: string | null; 
@@ -53,6 +55,7 @@ export interface DealItem {
   id: string;
   deal_id: string;
   product_id: string;
+  organization_id: string; // Multi-tenancy
   quantity: number;    
   unit_price: number;  
   total_price: number; 
@@ -63,6 +66,7 @@ export interface DealItem {
 export interface Deal {
   id: string;
   created_at: string;
+  organization_id: string; // Multi-tenancy
   title: string;
   value: number; 
   currency: 'GTQ' | 'USD';
@@ -80,6 +84,7 @@ export interface Deal {
 export interface Activity {
   id: string;
   client_id: string;
+  organization_id: string; // Multi-tenancy
   type: 'note' | 'call' | 'email' | 'system';
   content: string;
   author_name?: string;
@@ -89,6 +94,7 @@ export interface Activity {
 
 export interface OrganizationSettings {
   id: string;
+  organization_id: string; // Multi-tenancy
   company_name: string;
   tax_id?: string | null; // NIT
   address?: string | null;
