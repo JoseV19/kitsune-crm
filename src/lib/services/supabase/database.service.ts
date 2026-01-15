@@ -4,7 +4,7 @@ import { OrganizationSettings } from '@/types/crm';
 
 /**
  * Database service with organization context
- * All operations automatically filter by organization_id from user's profile
+ * All operations automatically filter by organization_id from organization context
  */
 export class DatabaseService {
   private organizationId: string | null = null;

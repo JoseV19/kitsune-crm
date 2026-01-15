@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createOrganizationSchema, type CreateOrganizationFormData } from '@/lib/validations/organization.schema';
-import { createOrganization, checkSlugAvailability } from '@/lib/services/organization.service';
+import { checkSlugAvailability } from '@/lib/services/organization.service';
 import { generateSlug } from '@/lib/utils/slug-generator';
 import { supabase } from '@/lib/services/supabase/client';
-import { storage } from '@/lib/services/supabase/storage.service';
-import { Loader2, Upload, Image as ImageIcon, Building2, Globe } from 'lucide-react';
+import { Loader2, Upload, Image as ImageIcon, Building2, Globe, LogOut } from 'lucide-react';
 import Image from 'next/image';
 
 export default function OnboardingPage() {
@@ -18,8 +17,6 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [logoBackground, setLogoBackground] = useState<'white' | 'black'>('white');
-  const [slug, setSlug] = useState('');
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
 
@@ -27,6 +24,7 @@ export default function OnboardingPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateOrganizationFormData>({
     resolver: zodResolver(createOrganizationSchema),
@@ -39,14 +37,18 @@ export default function OnboardingPage() {
   });
 
   const organizationName = watch('name');
+  const slug = watch('slug');
+  const logoBackground = watch('logo_background_color');
 
   // Auto-generate slug when name changes
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
     const generatedSlug = generateSlug(name);
-    setSlug(generatedSlug);
+    setValue('slug', generatedSlug, { shouldValidate: false });
     if (generatedSlug.length >= 3) {
       checkSlug(generatedSlug);
+    } else {
+      setSlugAvailable(null);
     }
   };
 
@@ -63,7 +65,7 @@ export default function OnboardingPage() {
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSlug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
-    setSlug(newSlug);
+    setValue('slug', newSlug, { shouldValidate: true });
     if (newSlug.length >= 3) {
       checkSlug(newSlug);
     } else {
@@ -79,6 +81,11 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
   const onSubmit = async (data: CreateOrganizationFormData) => {
     setLoading(true);
     setError(null);
@@ -91,85 +98,54 @@ export default function OnboardingPage() {
       }
 
       // Validate slug
-      if (!slug || slug.length < 3) {
+      if (!data.slug || data.slug.length < 3) {
         throw new Error('El slug debe tener al menos 3 caracteres');
       }
 
-      const available = await checkSlugAvailability(slug);
+      const available = await checkSlugAvailability(data.slug);
       if (!available) {
-        throw new Error('El slug ya está en uso. Por favor, elige otro.');
+        throw new Error('Ese nombre de empresa ya está en uso. Por favor, elige otro.');
       }
 
-      // Upload logo if provided
-      let logoUrl: string | null = null;
+      // Get auth token for API request
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No se pudo obtener la sesión');
+      }
+
+      // Create FormData to send organization data and logo file
+      const formData = new FormData();
+      formData.append('name', data.name);
+      formData.append('slug', data.slug);
+      formData.append('logo_background_color', data.logo_background_color);
       if (logoFile) {
-        // Temporarily set organization context (will be set after creation)
-        // For now, upload to a temp location and move after org creation
-        const fileExt = logoFile.name.split('.').pop();
-        const tempFileName = `temp/${user.id}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('organization-logos')
-          .upload(tempFileName, logoFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('organization-logos')
-          .getPublicUrl(tempFileName);
-        
-        logoUrl = publicUrl;
+        formData.append('logo', logoFile);
       }
 
-      // Create organization
-      const organization = await createOrganization(
-        {
-          name: data.name,
-          slug,
-          logo_url: logoUrl,
-          logo_background_color: logoBackground,
+      // Create organization via API route (uses service role to bypass RLS)
+      // Logo upload is also handled in the API route
+      const createResponse = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        user.id
-      );
+        body: formData,
+      });
 
-      // Move logo to final location if uploaded
-      if (logoFile && logoUrl) {
-        const fileExt = logoFile.name.split('.').pop();
-        const finalFileName = `${organization.id}/logo.${fileExt}`;
-        const tempFileName = `temp/${user.id}.${fileExt}`;
-        
-        // Copy to final location
-        const { data: fileData } = await supabase.storage
-          .from('organization-logos')
-          .list('temp');
-        
-        if (fileData) {
-          // Download from temp
-          const { data: fileContent } = await supabase.storage
-            .from('organization-logos')
-            .download(tempFileName);
-          
-          if (fileContent) {
-            // Upload to final location
-            await supabase.storage
-              .from('organization-logos')
-              .upload(finalFileName, fileContent, { upsert: true });
-            
-            // Delete temp file
-            await supabase.storage
-              .from('organization-logos')
-              .remove([tempFileName]);
-          }
-        }
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        throw new Error(errorData.error || 'Error al crear la organización');
       }
+
+      const { organization } = await createResponse.json();
 
       // Redirect to organization subdomain
       const protocol = window.location.protocol;
       const host = window.location.host;
       const isLocalhost = host.includes('localhost');
       const baseUrl = isLocalhost 
-        ? `${protocol}//${slug}.${host}`
-        : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
+        ? `${protocol}//${data.slug}.${host}`
+        : `${protocol}//${data.slug}.${host.split('.').slice(1).join('.')}`;
       
       window.location.href = baseUrl;
     } catch (err) {
@@ -182,7 +158,14 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        <div className="bg-[#1e293b] border border-slate-700 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-[#1e293b] border border-slate-700 rounded-2xl p-8 shadow-2xl relative">
+          <button
+            onClick={handleSignOut}
+            className="absolute top-6 right-6 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+            title="Cerrar sesión"
+          >
+            <LogOut size={20} />
+          </button>
           <div className="text-center mb-8">
             <Building2 className="w-16 h-16 text-[#00D4BD] mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -226,14 +209,19 @@ export default function OnboardingPage() {
                 </span>
               </div>
               <input
-                type="text"
-                value={slug}
-                onChange={handleSlugChange}
+                {...register('slug')}
+                onChange={(e) => {
+                  register('slug').onChange(e);
+                  handleSlugChange(e);
+                }}
                 className="w-full bg-slate-900 border border-slate-700 text-white p-3 rounded-lg focus:border-[#00D4BD] focus:ring-1 focus:ring-[#00D4BD] outline-none transition-all mt-2 font-mono text-sm"
                 placeholder="mi-empresa"
                 minLength={3}
                 maxLength={50}
               />
+              {errors.slug && (
+                <p className="text-red-400 text-sm mt-1">{errors.slug.message}</p>
+              )}
               <div className="flex items-center gap-2 mt-2">
                 {checkingSlug && (
                   <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
@@ -305,7 +293,7 @@ export default function OnboardingPage() {
                     <div className="flex gap-4">
                       <button
                         type="button"
-                        onClick={() => setLogoBackground('white')}
+                        onClick={() => setValue('logo_background_color', 'white')}
                         className={`px-4 py-2 rounded-lg border-2 transition-all ${
                           logoBackground === 'white'
                             ? 'border-[#00D4BD] bg-[#00D4BD]/10'
@@ -317,7 +305,7 @@ export default function OnboardingPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setLogoBackground('black')}
+                        onClick={() => setValue('logo_background_color', 'black')}
                         className={`px-4 py-2 rounded-lg border-2 transition-all ${
                           logoBackground === 'black'
                             ? 'border-[#00D4BD] bg-[#00D4BD]/10'

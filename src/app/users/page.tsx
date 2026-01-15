@@ -13,7 +13,7 @@ import { Loader2, UserPlus, Mail, User, Shield, Trash2, X, Plus } from 'lucide-r
 
 export default function UsersPage() {
   const router = useRouter();
-  const { organization, organizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const isOwner = useIsOrgOwner();
   const [users, setUsers] = useState<OrganizationUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function UsersPage() {
     try {
       setLoading(true);
       setError(null);
-      const organizationUsers = await getOrganizationUsers(organizationId);
+      const organizationUsers = await getOrganizationUsers();
       setUsers(organizationUsers);
     } catch (err: any) {
       setError(err.message || 'Error al cargar usuarios');
@@ -62,7 +62,6 @@ export default function UsersPage() {
       await createUser({
         name: data.name,
         email: data.email,
-        organizationId,
       });
       
       reset();
@@ -83,7 +82,7 @@ export default function UsersPage() {
     try {
       setDeletingUserId(userId);
       setError(null);
-      await removeUserFromOrganization(userId, organizationId);
+      await removeUserFromOrganization(userId);
       await loadUsers();
     } catch (err: any) {
       setError(err.message || 'Error al eliminar usuario');
@@ -117,6 +116,8 @@ export default function UsersPage() {
     switch (role) {
       case 'owner':
         return 'Propietario';
+      case 'admin':
+        return 'Administrador';
       case 'member':
         return 'Miembro';
       default:
@@ -128,6 +129,8 @@ export default function UsersPage() {
     switch (role) {
       case 'owner':
         return <Shield className="text-kiriko-teal" size={16} />;
+      case 'admin':
+        return <Shield className="text-blue-400" size={16} />;
       default:
         return <User className="text-slate-400" size={16} />;
     }
@@ -208,12 +211,16 @@ export default function UsersPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          {getRoleIcon(user.role)}
-                          <span className="text-slate-300">{getRoleLabel(user.role)}</span>
+                          {getRoleIcon(user.role || 'member')}
+                          <span className="text-slate-300">{getRoleLabel(user.role || 'member')}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {user.has_password ? (
+                        {!user.is_active ? (
+                          <span className="px-3 py-1 bg-slate-700/60 text-slate-300 rounded-full text-xs font-bold">
+                            Inactivo
+                          </span>
+                        ) : user.has_password ? (
                           <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold">
                             Activo
                           </span>
@@ -229,7 +236,7 @@ export default function UsersPage() {
                             onClick={() => onDeleteUser(user.id)}
                             disabled={deletingUserId === user.id}
                             className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Eliminar usuario"
+                            title={user.is_active ? 'Desactivar usuario' : 'Usuario inactivo'}
                           >
                             {deletingUserId === user.id ? (
                               <Loader2 className="animate-spin" size={18} />

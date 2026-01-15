@@ -6,6 +6,7 @@ import { getOrganizationBySlug } from '@/lib/services/organization.service';
 import { Organization } from '@/types/organization';
 import { db } from '@/lib/services/supabase/database.service';
 import { storage } from '@/lib/services/supabase/storage.service';
+import { supabase } from '@/lib/services/supabase/client';
 
 export function OrganizationProviderWrapper({ children }: { children: React.ReactNode }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -28,6 +29,28 @@ export function OrganizationProviderWrapper({ children }: { children: React.Reac
         const org = await getOrganizationBySlug(subdomain);
         
         if (org) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: membership } = await supabase
+              .from('user_organization_memberships')
+              .select('is_active')
+              .eq('user_id', user.id)
+              .eq('organization_id', org.id)
+              .single();
+
+            if (!membership?.is_active) {
+              const protocol = window.location.protocol;
+              const host = window.location.host;
+              const isLocalhost = host.includes('localhost');
+              const baseHost = isLocalhost
+                ? host.split('.').slice(1).join('.') || host
+                : host.split('.').slice(1).join('.');
+
+              window.location.href = `${protocol}//${baseHost}/select-organization`;
+              return;
+            }
+          }
+
           setOrganization(org);
           // Set organization context in services
           db.setOrganizationId(org.id);

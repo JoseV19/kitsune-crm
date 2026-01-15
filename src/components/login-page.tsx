@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/services/supabase/client';
+import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import { Loader2, ShieldCheck, Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
 interface LoginPageProps {
@@ -63,42 +64,29 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               throw new Error('Error al iniciar sesión');
             }
 
-            // Check if user has an organization
-            const { data: profile, error: profileError } = await supabase
-              .from('user_profiles')
-              .select('organization_id, role')
-              .eq('id', data.user.id)
-              .single();
+            const activeMemberships = await getActiveUserOrganizations(data.user.id);
 
-            // If no organization, redirect to onboarding
-            if (!profile || !profile.organization_id) {
+            if (activeMemberships.length === 0) {
               router.push('/onboarding');
               return;
             }
 
-            // Get organization to redirect to subdomain
-            const { data: organization } = await supabase
-              .from('organizations')
-              .select('slug')
-              .eq('id', profile.organization_id)
-              .single();
-
-            if (organization) {
-              // Redirect to organization subdomain
+            if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
               const host = window.location.host;
               const isLocalhost = host.includes('localhost');
               const protocol = window.location.protocol;
+              const slug = activeMemberships[0].organization?.slug;
               
               if (isLocalhost) {
-                window.location.href = `${protocol}//${organization.slug}.${host}`;
+                window.location.href = `${protocol}//${slug}.${host}`;
               } else {
                 const baseDomain = host.split('.').slice(1).join('.');
-                window.location.href = `${protocol}//${organization.slug}.${baseDomain}`;
+                window.location.href = `${protocol}//${slug}.${baseDomain}`;
               }
-            } else {
-              // Fallback: redirect to onboarding
-              router.push('/onboarding');
+              return;
             }
+
+            router.push('/select-organization');
         }
     } catch (error: any) {
         setErrorMsg(error.message === 'Invalid login credentials' 

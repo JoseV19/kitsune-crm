@@ -39,17 +39,17 @@ export async function POST(request: NextRequest) {
     // Users without passwords won't have encrypted_password
     const hasPassword = !!user.encrypted_password;
 
-    // Check if user has a profile
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, organization_id')
-      .eq('id', user.id)
-      .single();
+    // Check if user has at least one organization membership
+    const { data: memberships } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
 
     return NextResponse.json({
       exists: true,
       needsPassword: !hasPassword,
-      hasProfile: !!profile,
+      hasProfile: (memberships || []).length > 0,
       userId: user.id,
     });
   } catch (error: any) {

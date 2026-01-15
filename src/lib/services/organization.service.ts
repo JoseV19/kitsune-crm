@@ -1,5 +1,5 @@
 import { supabase } from './supabase/client';
-import { Organization } from '@/types/organization';
+import { Organization, UserOrganizationMembership } from '@/types/organization';
 import { generateSlug, isValidSlug } from '@/lib/utils/slug-generator';
 
 export interface CreateOrganizationData {
@@ -71,22 +71,97 @@ export async function createOrganization(
     throw new Error(`Error al crear organización: ${orgError.message}`);
   }
 
-  // Create user profile linking user to organization as owner
+  // Ensure user profile exists (profile is not scoped to a single organization)
   const { error: profileError } = await supabase
     .from('user_profiles')
-    .insert({
+    .upsert({
       id: userId,
-      organization_id: organization.id,
-      role: 'owner',
     });
 
   if (profileError) {
-    // Rollback: delete organization if profile creation fails
     await supabase.from('organizations').delete().eq('id', organization.id);
     throw new Error(`Error al vincular usuario: ${profileError.message}`);
   }
 
+  // Create membership linking user to organization as owner
+  const { error: membershipError } = await supabase
+    .from('user_organization_memberships')
+    .insert({
+      user_id: userId,
+      organization_id: organization.id,
+      role: 'owner',
+      is_active: true,
+    });
+
+  if (membershipError) {
+    await supabase.from('organizations').delete().eq('id', organization.id);
+    throw new Error(`Error al vincular usuario: ${membershipError.message}`);
+  }
+
   return organization;
+}
+
+export async function getUserOrganizations(userId: string): Promise<UserOrganizationMembership[]> {
+  const { data, error } = await supabase
+    .from('user_organization_memberships')
+    .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Error al obtener organizaciones: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+export async function getActiveUserOrganizations(userId: string): Promise<UserOrganizationMembership[]> {
+  const { data, error } = await supabase
+    .from('user_organization_memberships')
+    .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Error al obtener organizaciones activas: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+export async function switchUserOrganization(
+  userId: string,
+  organizationId: string
+): Promise<UserOrganizationMembership | null> {
+  const { data, error } = await supabase
+    .from('user_organization_memberships')
+    .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
+    .eq('user_id', userId)
+    .eq('organization_id', organizationId)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+export async function updateMembershipStatus(
+  userId: string,
+  organizationId: string,
+  isActive: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('user_organization_memberships')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('organization_id', organizationId);
+
+  if (error) {
+    throw new Error(`Error al actualizar estado: ${error.message}`);
+  }
 }
 
 /**

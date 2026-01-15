@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/lib/services/supabase/client';
+import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import { setPasswordSchema, type SetPasswordFormData } from '@/lib/validations/user-management.schema';
 import { Loader2, Lock, ShieldCheck, Mail } from 'lucide-react';
 
@@ -76,33 +77,26 @@ export default function SetPasswordPage() {
         return;
       }
 
-      // Get user's organization
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', signInData.user.id)
-        .single();
+      const activeMemberships = await getActiveUserOrganizations(signInData.user.id);
 
-      if (profile?.organization_id) {
-        const { data: organization } = await supabase
-          .from('organizations')
-          .select('slug')
-          .eq('id', profile.organization_id)
-          .single();
+      if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
+        const host = window.location.host;
+        const isLocalhost = host.includes('localhost');
+        const protocol = window.location.protocol;
+        const slug = activeMemberships[0].organization?.slug;
 
-        if (organization) {
-          const host = window.location.host;
-          const isLocalhost = host.includes('localhost');
-          const protocol = window.location.protocol;
-          
-          if (isLocalhost) {
-            window.location.href = `${protocol}//${organization.slug}.${host}`;
-          } else {
-            const baseDomain = host.split('.').slice(1).join('.');
-            window.location.href = `${protocol}//${organization.slug}.${baseDomain}`;
-          }
-          return;
+        if (isLocalhost) {
+          window.location.href = `${protocol}//${slug}.${host}`;
+        } else {
+          const baseDomain = host.split('.').slice(1).join('.');
+          window.location.href = `${protocol}//${slug}.${baseDomain}`;
         }
+        return;
+      }
+
+      if (activeMemberships.length > 1) {
+        router.push('/select-organization');
+        return;
       }
 
       // Fallback: redirect to login

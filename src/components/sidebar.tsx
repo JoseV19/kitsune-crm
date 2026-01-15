@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -10,6 +13,10 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { supabase } from "@/lib/services/supabase/client";
+import { getActiveUserOrganizations } from "@/lib/services/organization.service";
+import { useOrganization } from "@/lib/contexts/organization-context";
+import { UserOrganizationMembership } from "@/types/organization";
 
 interface SidebarProps {
   currentView?: "home" | "kanban" | "dashboard"; 
@@ -28,8 +35,38 @@ export default function Sidebar({
   onProfileClick,
   onLogout,
 }: SidebarProps) {
-  
-  
+  const { organization } = useOrganization();
+  const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        return;
+      }
+
+      const activeMemberships = await getActiveUserOrganizations(authUser.id);
+      setMemberships(activeMemberships);
+    };
+
+    loadOrganizations();
+  }, []);
+
+  const handleSwitchOrganization = (slug?: string) => {
+    if (!slug) {
+      return;
+    }
+
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    const isLocalhost = host.includes('localhost');
+    const baseUrl = isLocalhost
+      ? `${protocol}//${slug}.${host}`
+      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
+    window.location.href = baseUrl;
+  };
+
   const menuItems = [
     { id: "home", label: "Inicio", icon: <Home size={20} /> },
     { id: "kanban", label: "Tablero", icon: <KanbanSquare size={20} /> },
@@ -50,6 +87,40 @@ export default function Sidebar({
           />
         </Link>
       </div>
+
+      {/* ORGANIZATION SWITCHER */}
+      {memberships.length > 1 && (
+        <div className="px-4 mb-6">
+          <button
+            onClick={() => setSwitcherOpen((prev) => !prev)}
+            className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-3 text-left hover:border-kiriko-teal/50 transition-all"
+          >
+            <p className="text-xs uppercase text-slate-500 font-bold tracking-wider">Organización</p>
+            <p className="text-white font-semibold truncate">
+              {organization?.name || 'Selecciona organización'}
+            </p>
+          </button>
+
+          {switcherOpen && (
+            <div className="mt-2 space-y-2">
+              {memberships.map((membership) => (
+                <button
+                  key={membership.id}
+                  onClick={() => handleSwitchOrganization(membership.organization?.slug)}
+                  className="w-full text-left px-4 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-slate-300 hover:text-white hover:border-kiriko-teal/50 transition-all"
+                >
+                  <div className="text-sm font-medium truncate">
+                    {membership.organization?.name || 'Organización'}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono truncate">
+                    {membership.organization?.slug}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. BOTÓN DE ACCIÓN PRINCIPAL */}
       <div className="px-4 mb-8">

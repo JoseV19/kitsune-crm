@@ -54,14 +54,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has a profile (is part of an organization)
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id, organization_id')
-      .eq('id', user.id)
-      .single();
+    // Check if user has at least one organization membership
+    const { data: memberships } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
 
-    if (!profile) {
+    if (!memberships || memberships.length === 0) {
       return NextResponse.json(
         { error: 'Usuario no tiene una organización asignada' },
         { status: 400 }

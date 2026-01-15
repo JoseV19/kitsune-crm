@@ -104,3 +104,9 @@ Follow Next.js docs for Data Fetching, Rendering, and Routing.
 
 ### Zod usage
 - `z.string().email()` is deprecated, use `z.email()` instead
+
+### Global rules
+
+- Leave NO todo’s, placeholders or missing pieces.
+- Ensure code is complete! Verify thoroughly finalized.
+- If you think there might not be a correct answer, you say so. If you do not know the answer, say so instead of guessing.

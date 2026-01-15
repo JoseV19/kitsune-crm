@@ -30,6 +30,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (url.pathname.startsWith('/select-organization')) {
+    const isLocalhost = hostname.includes('localhost');
+    const baseHost = isLocalhost
+      ? hostname.split('.').slice(1).join('.') || hostname
+      : hostname.split('.').slice(1).join('.');
+    return NextResponse.redirect(new URL(`${url.protocol}//${baseHost}/select-organization`));
+  }
+
   // Store subdomain in headers for use in the app
   const response = NextResponse.next();
   response.headers.set('x-organization-slug', subdomain);

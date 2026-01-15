@@ -4,12 +4,12 @@ import { UserProfile } from '@/types/organization';
 export interface CreateUserData {
   name: string;
   email: string;
-  organizationId: string;
 }
 
 export interface OrganizationUser extends UserProfile {
   email?: string;
   has_password?: boolean;
+  is_active?: boolean;
 }
 
 /**
@@ -54,7 +54,7 @@ export async function createUser(data: CreateUserData): Promise<{ userId: string
 /**
  * Get all users in an organization
  */
-export async function getOrganizationUsers(organizationId: string): Promise<OrganizationUser[]> {
+export async function getOrganizationUsers(): Promise<OrganizationUser[]> {
   const token = await getAuthToken();
 
   const response = await fetch('/api/users', {
@@ -77,7 +77,7 @@ export async function getOrganizationUsers(organizationId: string): Promise<Orga
  * Remove a user from an organization
  * This deletes the user_profile, not the auth user
  */
-export async function removeUserFromOrganization(userId: string, organizationId: string): Promise<void> {
+export async function removeUserFromOrganization(userId: string): Promise<void> {
   const token = await getAuthToken();
 
   const response = await fetch(`/api/users/${userId}`, {
@@ -96,22 +96,46 @@ export async function removeUserFromOrganization(userId: string, organizationId:
 /**
  * Get current user's role in their organization
  */
-export async function getCurrentUserRole(): Promise<'owner' | 'member' | null> {
+export async function getCurrentUserRole(): Promise<'owner' | 'admin' | 'member' | null> {
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  const host = window.location.host;
+  const isLocalhost = host.includes('localhost');
+  const parts = host.split('.');
+  const subdomain = parts[0];
 
-  if (!profile) {
+  if (isLocalhost && parts.length < 2) {
     return null;
   }
 
-  return profile.role as 'owner' | 'member';
+  if (!subdomain || subdomain === 'www' || subdomain === 'localhost') {
+    return null;
+  }
+
+  const { data: organization } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', subdomain)
+    .single();
+
+  if (!organization) {
+    return null;
+  }
+
+  const { data: membership } = await supabase
+    .from('user_organization_memberships')
+    .select('role, is_active')
+    .eq('user_id', user.id)
+    .eq('organization_id', organization.id)
+    .single();
+
+  if (!membership?.is_active) {
+    return null;
+  }
+
+  return membership.role as 'owner' | 'admin' | 'member';
 }

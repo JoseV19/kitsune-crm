@@ -13,12 +13,52 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// Create regular client for RLS queries
+// Create regular client for auth verification
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+function getOrganizationSlugFromHost(host: string): string | null {
+  if (!host) {
+    return null;
+  }
+
+  const isLocalhost = host.includes('localhost');
+  if (isLocalhost) {
+    const parts = host.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+    return parts[0];
+  }
+
+  const subdomain = host.split('.')[0];
+  if (!subdomain || subdomain === 'www') {
+    return null;
+  }
+  return subdomain;
+}
+
+async function getOrganizationFromRequest(request: NextRequest) {
+  const host = request.headers.get('host') || '';
+  const slug = getOrganizationSlugFromHost(host);
+  if (!slug) {
+    return null;
+  }
+
+  const { data: organization, error } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, slug')
+    .eq('slug', slug)
+    .single();
+
+  if (error || !organization) {
+    return null;
+  }
+
+  return organization;
+}
 
 export async function GET(request: NextRequest) {
   try {
-    // Get auth token from request
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json(
@@ -37,46 +77,57 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's organization
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    const organization = await getOrganizationFromRequest(request);
+    if (!organization) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 }
+      );
+    }
+
+    const { data: membership } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .eq('organization_id', organization.id)
       .single();
 
-    if (!profile || !profile.organization_id) {
+    if (!membership || !membership.is_active) {
       return NextResponse.json(
-        { error: 'User not in an organization' },
+        { error: 'User not active in this organization' },
         { status: 403 }
       );
     }
 
-    // Check if user is owner
-    if (profile.role !== 'owner') {
+    if (membership.role !== 'owner') {
       return NextResponse.json(
         { error: 'Only organization owners can view users' },
         { status: 403 }
       );
     }
 
-    // Get all users in organization
-    const { data: profiles, error: profilesError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('organization_id', profile.organization_id)
+    const { data: memberships, error: membershipsError } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .select('id, user_id, role, is_active, created_at, updated_at, user: user_profiles ( id, full_name, avatar_url, created_at, updated_at )')
+      .eq('organization_id', organization.id)
       .order('created_at', { ascending: false });
 
-    if (profilesError) {
-      throw profilesError;
+    if (membershipsError) {
+      throw membershipsError;
     }
 
-    // Get email and password status for each user
     const usersWithDetails = await Promise.all(
-      (profiles || []).map(async (profile) => {
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+      (memberships || []).map(async (entry) => {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(entry.user_id);
         return {
-          ...profile,
-          email: authUser?.user?.email,
+          id: entry.user_id,
+          role: entry.role,
+          is_active: entry.is_active,
+          full_name: entry.user?.full_name || null,
+          avatar_url: entry.user?.avatar_url || null,
+          created_at: entry.created_at,
+          updated_at: entry.updated_at,
+          email: authUser?.user?.email || null,
           has_password: !!authUser?.user?.encrypted_password,
         };
       })
@@ -94,7 +145,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get auth token from request
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json(
@@ -113,22 +163,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's organization
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    const organization = await getOrganizationFromRequest(request);
+    if (!organization) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 }
+      );
+    }
+
+    const { data: membership } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .eq('organization_id', organization.id)
       .single();
 
-    if (!profile || !profile.organization_id) {
+    if (!membership || !membership.is_active) {
       return NextResponse.json(
-        { error: 'User not in an organization' },
+        { error: 'User not active in this organization' },
         { status: 403 }
       );
     }
 
-    // Check if user is owner
-    if (profile.role !== 'owner') {
+    if (membership.role !== 'owner') {
       return NextResponse.json(
         { error: 'Only organization owners can create users' },
         { status: 403 }
@@ -144,36 +201,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
     const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email);
 
     if (existingUser?.user) {
-      // User exists, check if they're already in this organization
-      const { data: existingProfile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', existingUser.user.id)
+      const { data: existingMembership } = await supabaseAdmin
+        .from('user_organization_memberships')
+        .select('id, is_active')
+        .eq('user_id', existingUser.user.id)
+        .eq('organization_id', organization.id)
         .single();
 
-      if (existingProfile?.organization_id === profile.organization_id) {
-        return NextResponse.json(
-          { error: 'El usuario ya existe en esta organización' },
-          { status: 400 }
-        );
+      if (existingMembership?.id) {
+        if (existingMembership.is_active) {
+          return NextResponse.json(
+            { error: 'El usuario ya existe en esta organización' },
+            { status: 400 }
+          );
+        }
+
+        const { error: reActivateError } = await supabaseAdmin
+          .from('user_organization_memberships')
+          .update({ is_active: true, updated_at: new Date().toISOString() })
+          .eq('id', existingMembership.id);
+
+        if (reActivateError) {
+          throw new Error(`Error al reactivar usuario: ${reActivateError.message}`);
+        }
+
+        return NextResponse.json({
+          userId: existingUser.user.id,
+          email,
+          message: 'Usuario reactivado en la organización',
+        });
       }
 
-      // User exists but not in this org - add them to the organization
-      const { error: profileError } = await supabase
+      await supabaseAdmin
         .from('user_profiles')
-        .insert({
+        .upsert({
           id: existingUser.user.id,
-          organization_id: profile.organization_id,
-          role: 'member',
           full_name: name,
         });
 
-      if (profileError) {
-        throw new Error(`Error al agregar usuario: ${profileError.message}`);
+      const { error: membershipError } = await supabaseAdmin
+        .from('user_organization_memberships')
+        .insert({
+          user_id: existingUser.user.id,
+          organization_id: organization.id,
+          role: 'member',
+          is_active: true,
+        });
+
+      if (membershipError) {
+        throw new Error(`Error al agregar usuario: ${membershipError.message}`);
       }
 
       return NextResponse.json({
@@ -183,10 +262,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create new user without password
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      email_confirm: true, // Auto-confirm email
+      email_confirm: true,
       user_metadata: {
         full_name: name,
       },
@@ -196,20 +274,30 @@ export async function POST(request: NextRequest) {
       throw new Error(`Error al crear usuario: ${createError?.message || 'Error desconocido'}`);
     }
 
-    // Create user profile
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .insert({
         id: newUser.user.id,
-        organization_id: profile.organization_id,
-        role: 'member',
         full_name: name,
       });
 
     if (profileError) {
-      // Rollback: delete auth user if profile creation fails
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error(`Error al crear perfil: ${profileError.message}`);
+    }
+
+    const { error: membershipError } = await supabaseAdmin
+      .from('user_organization_memberships')
+      .insert({
+        user_id: newUser.user.id,
+        organization_id: organization.id,
+        role: 'member',
+        is_active: true,
+      });
+
+    if (membershipError) {
+      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      throw new Error(`Error al crear membresía: ${membershipError.message}`);
     }
 
     return NextResponse.json({

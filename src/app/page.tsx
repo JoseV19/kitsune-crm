@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/services/supabase/client";
 import { useOrganization } from "@/lib/contexts/organization-context";
+import { getActiveUserOrganizations } from "@/lib/services/organization.service";
 import Sidebar from "@/components/sidebar";
 import KanbanBoard from "@/components/kanban-board";
 import { LoginPage } from "@/components/login-page";
@@ -22,9 +23,10 @@ interface UserData {
 
 export default function Home() {
   const router = useRouter();
-  const { organization, isLoading: orgLoading } = useOrganization();
+  const { organization, organizationId, isLoading: orgLoading } = useOrganization();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<UserData>({
     name: "Usuario",
     role: "Miembro",
@@ -52,18 +54,19 @@ export default function Home() {
         }
 
         setIsAuthenticated(true);
+        setUserId(authUser.id);
 
-        // Get user profile for name and role
+        // Get user profile for name
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('full_name, role')
+          .select('full_name')
           .eq('id', authUser.id)
           .single();
 
         if (profile) {
           setUser({
             name: profile.full_name || authUser.email?.split('@')[0] || 'Usuario',
-            role: profile.role === 'owner' ? 'Propietario' : profile.role === 'admin' ? 'Administrador' : 'Miembro',
+            role: 'Miembro',
             avatar: authUser.user_metadata?.avatar_url || '',
           });
         } else {
@@ -83,12 +86,76 @@ export default function Home() {
     checkSession();
   }, []);
 
-  // Redirect to onboarding if no organization
   useEffect(() => {
-    if (!orgLoading && !isLoading && isAuthenticated && !organization) {
-      router.push('/onboarding');
-    }
-  }, [orgLoading, isLoading, isAuthenticated, organization, router]);
+    const loadUserRole = async () => {
+      if (!userId || !organizationId) {
+        return;
+      }
+
+      const { data: membership } = await supabase
+        .from('user_organization_memberships')
+        .select('role, is_active')
+        .eq('user_id', userId)
+        .eq('organization_id', organizationId)
+        .single();
+
+      if (membership?.is_active) {
+        setUser((prev) => ({
+          ...prev,
+          role: membership.role === 'owner' ? 'Propietario' : membership.role === 'admin' ? 'Administrador' : 'Miembro',
+        }));
+      }
+    };
+
+    loadUserRole();
+  }, [organizationId, userId]);
+
+  // Redirect based on memberships if no organization is selected
+  useEffect(() => {
+    const handleNoOrganization = async () => {
+      if (orgLoading || isLoading || !isAuthenticated || organization) {
+        return;
+      }
+
+      if (!userId) {
+        router.push('/');
+        return;
+      }
+
+      const memberships = await getActiveUserOrganizations(userId);
+
+      if (memberships.length === 0) {
+        router.push('/onboarding');
+        return;
+      }
+
+      if (memberships.length === 1 && memberships[0].organization?.slug) {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const isLocalhost = host.includes('localhost');
+        const slug = memberships[0].organization?.slug;
+
+        if (isLocalhost) {
+          window.location.href = `${protocol}//${slug}.${host}`;
+        } else {
+          const baseDomain = host.split('.').slice(1).join('.');
+          window.location.href = `${protocol}//${slug}.${baseDomain}`;
+        }
+        return;
+      }
+
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const isLocalhost = host.includes('localhost');
+      const baseHost = isLocalhost
+        ? host.split('.').slice(1).join('.') || host
+        : host.split('.').slice(1).join('.');
+
+      window.location.href = `${protocol}//${baseHost}/select-organization`;
+    };
+
+    handleNoOrganization();
+  }, [orgLoading, isLoading, isAuthenticated, organization, router, userId]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
