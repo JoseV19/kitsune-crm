@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/lib/services/supabase/client';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import { setPasswordSchema, type SetPasswordFormData } from '@/lib/validations/user-management.schema';
+import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 import { Loader2, Lock, ShieldCheck, Mail } from 'lucide-react';
 
 export default function SetPasswordPage() {
@@ -81,16 +82,9 @@ export default function SetPasswordPage() {
 
       if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
         const host = window.location.host;
-        const isLocalhost = host.includes('localhost');
         const protocol = window.location.protocol;
         const slug = activeMemberships[0].organization?.slug;
-
-        if (isLocalhost) {
-          window.location.href = `${protocol}//${slug}.${host}`;
-        } else {
-          const baseDomain = host.split('.').slice(1).join('.');
-          window.location.href = `${protocol}//${slug}.${baseDomain}`;
-        }
+        window.location.href = buildSubdomainUrl(slug, host, protocol);
         return;
       }
 

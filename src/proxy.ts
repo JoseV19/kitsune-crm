@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = request.headers.get('host') || '';
   
@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
   // For production: subdomain.kitsunecrm.com
   const subdomain = hostname.split('.')[0];
   
-  // Skip middleware for:
+  // Skip proxy for:
   // - API routes
   // - Static files
   // - _next routes

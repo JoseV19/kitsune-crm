@@ -6,6 +6,7 @@ import { supabase } from '@/lib/services/supabase/client';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import OrganizationSelector from '@/components/organization-selector';
 import { UserOrganizationMembership } from '@/types/organization';
+import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 
 export default function SelectOrganizationPage() {
   const router = useRouter();
@@ -55,13 +56,12 @@ export default function SelectOrganizationPage() {
       return;
     }
 
+    // Store as last accessed organization
+    localStorage.setItem('last_organization_slug', slug);
+
     const protocol = window.location.protocol;
     const host = window.location.host;
-    const isLocalhost = host.includes('localhost');
-    const baseUrl = isLocalhost
-      ? `${protocol}//${slug}.${host}`
-      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
-
+    const baseUrl = buildSubdomainUrl(slug, host, protocol);
     window.location.href = baseUrl;
   };
 

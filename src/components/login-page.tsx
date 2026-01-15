@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/services/supabase/client';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
+import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 import { Loader2, ShieldCheck, Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
 interface LoginPageProps {
@@ -17,9 +18,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions
+    if (loading || isRedirecting) {
+      return;
+    }
+    
     setLoading(true);
     setErrorMsg('');
 
@@ -73,16 +81,30 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
             if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
               const host = window.location.host;
-              const isLocalhost = host.includes('localhost');
               const protocol = window.location.protocol;
               const slug = activeMemberships[0].organization?.slug;
+              const isLocalhost = host.includes('localhost');
               
+              // Store as last accessed organization
+              localStorage.setItem('last_organization_slug', slug);
+              
+              // Wait a moment to ensure session is fully established
+              await new Promise(resolve => setTimeout(resolve, 200));
+              
+              // Prepare session transfer for subdomain redirect (if localhost)
+              let baseUrl = buildSubdomainUrl(slug, host, protocol);
               if (isLocalhost) {
-                window.location.href = `${protocol}//${slug}.${host}`;
-              } else {
-                const baseDomain = host.split('.').slice(1).join('.');
-                window.location.href = `${protocol}//${slug}.${baseDomain}`;
+                // Get fresh session to ensure we have the latest refresh token
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.refresh_token) {
+                  baseUrl += `#session_token=${encodeURIComponent(session.refresh_token)}`;
+                } else {
+                  console.warn('[Login] No refresh token available, redirecting without session transfer');
+                }
               }
+              
+              setIsRedirecting(true);
+              window.location.href = baseUrl;
               return;
             }
 
@@ -144,11 +166,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     {errorMsg && <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-xs text-center font-bold">⚠️ {errorMsg}</div>}
 
                     <button 
-                        type="submit" disabled={loading}
-                        className="w-full bg-kiriko-teal hover:bg-teal-400 text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-sm"
+                        type="submit" disabled={loading || isRedirecting}
+                        className="w-full bg-kiriko-teal hover:bg-teal-400 text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? <Loader2 className="animate-spin" /> : (isRegistering ? <UserPlus size={18}/> : <LogIn size={18}/>)}
-                        {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                        {loading || isRedirecting ? (
+                          <>
+                            <Loader2 className="animate-spin" />
+                            {isRedirecting ? 'Redirigiendo...' : (isRegistering ? 'Creando...' : 'Iniciando...')}
+                          </>
+                        ) : (
+                          <>
+                            {isRegistering ? <UserPlus size={18}/> : <LogIn size={18}/>}
+                            {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                          </>
+                        )}
                     </button>
                 </form>
 

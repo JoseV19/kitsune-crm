@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/services/supabase/client";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import { getActiveUserOrganizations } from "@/lib/services/organization.service";
+import { buildSubdomainUrl, getBaseHost } from "@/lib/utils/url-helper";
+import { prepareSessionTransfer } from "@/lib/services/supabase/session-transfer";
 import Sidebar from "@/components/sidebar";
 import KanbanBoard from "@/components/kanban-board";
 import { LoginPage } from "@/components/login-page";
@@ -41,9 +43,10 @@ export default function Home() {
   const [is360Open, setIs360Open] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkSessionAndRedirect = async () => {
       try {
         const { data: { user: authUser }, error } = await supabase.auth.getUser();
         
@@ -76,6 +79,78 @@ export default function Home() {
             avatar: '',
           });
         }
+
+        // Check if we're on the main domain (no subdomain)
+        const hostname = window.location.hostname;
+        const subdomain = hostname.split('.')[0];
+        const isMainDomain = !subdomain || subdomain === 'localhost' || subdomain.includes(':');
+
+        // If on main domain and authenticated, redirect immediately
+        if (isMainDomain) {
+          setIsRedirecting(true);
+          const memberships = await getActiveUserOrganizations(authUser.id);
+
+          if (memberships.length === 0) {
+            router.push('/onboarding');
+            return;
+          }
+
+          // Check for last accessed organization
+          const lastOrgSlug = localStorage.getItem('last_organization_slug');
+          if (lastOrgSlug) {
+            // Verify the user still has access to this organization
+            const lastOrgMembership = memberships.find(
+              m => m.organization?.slug === lastOrgSlug
+            );
+            if (lastOrgMembership?.organization?.slug) {
+              const protocol = window.location.protocol;
+              const host = window.location.host;
+              const isLocalhost = host.includes('localhost');
+              let redirectUrl = buildSubdomainUrl(lastOrgSlug, host, protocol);
+              
+              // Add session transfer token for localhost
+              if (isLocalhost) {
+                const refreshToken = await prepareSessionTransfer();
+                if (refreshToken) {
+                  redirectUrl += `#session_token=${encodeURIComponent(refreshToken)}`;
+                }
+              }
+              
+              window.location.href = redirectUrl;
+              return;
+            }
+          }
+
+          // If single organization, redirect there
+          if (memberships.length === 1 && memberships[0].organization?.slug) {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const isLocalhost = host.includes('localhost');
+            const slug = memberships[0].organization?.slug;
+            // Store as last accessed
+            localStorage.setItem('last_organization_slug', slug);
+            
+            let redirectUrl = buildSubdomainUrl(slug, host, protocol);
+            
+            // Add session transfer token for localhost
+            if (isLocalhost) {
+              const refreshToken = await prepareSessionTransfer();
+              if (refreshToken) {
+                redirectUrl += `#session_token=${encodeURIComponent(refreshToken)}`;
+              }
+            }
+            
+            window.location.href = redirectUrl;
+            return;
+          }
+
+          // Multiple organizations, go to selector
+          const protocol = window.location.protocol;
+          const host = window.location.host;
+          const baseHost = getBaseHost(host);
+          window.location.href = `${protocol}//${baseHost}/select-organization`;
+          return;
+        }
       } catch (e) {
         console.error("Error al cargar sesión", e);
         setIsAuthenticated(false);
@@ -83,8 +158,8 @@ export default function Home() {
         setIsLoading(false);
       }
     };
-    checkSession();
-  }, []);
+    checkSessionAndRedirect();
+  }, [router]);
 
   useEffect(() => {
     const loadUserRole = async () => {
@@ -110,10 +185,19 @@ export default function Home() {
     loadUserRole();
   }, [organizationId, userId]);
 
-  // Redirect based on memberships if no organization is selected
+  // Redirect based on memberships if no organization is selected (for subdomain cases)
   useEffect(() => {
     const handleNoOrganization = async () => {
-      if (orgLoading || isLoading || !isAuthenticated || organization) {
+      // Skip if we're on main domain (handled in checkSessionAndRedirect)
+      const hostname = window.location.hostname;
+      const subdomain = hostname.split('.')[0];
+      const isMainDomain = !subdomain || subdomain === 'localhost' || subdomain.includes(':');
+      if (isMainDomain) {
+        return;
+      }
+
+      // Only handle subdomain cases where organization isn't loaded
+      if (orgLoading || isLoading || !isAuthenticated || organization || isRedirecting) {
         return;
       }
 
@@ -125,37 +209,30 @@ export default function Home() {
       const memberships = await getActiveUserOrganizations(userId);
 
       if (memberships.length === 0) {
-        router.push('/onboarding');
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const baseHost = getBaseHost(host);
+        window.location.href = `${protocol}//${baseHost}/onboarding`;
         return;
       }
 
       if (memberships.length === 1 && memberships[0].organization?.slug) {
         const protocol = window.location.protocol;
         const host = window.location.host;
-        const isLocalhost = host.includes('localhost');
         const slug = memberships[0].organization?.slug;
-
-        if (isLocalhost) {
-          window.location.href = `${protocol}//${slug}.${host}`;
-        } else {
-          const baseDomain = host.split('.').slice(1).join('.');
-          window.location.href = `${protocol}//${slug}.${baseDomain}`;
-        }
+        localStorage.setItem('last_organization_slug', slug);
+        window.location.href = buildSubdomainUrl(slug, host, protocol);
         return;
       }
 
       const protocol = window.location.protocol;
       const host = window.location.host;
-      const isLocalhost = host.includes('localhost');
-      const baseHost = isLocalhost
-        ? host.split('.').slice(1).join('.') || host
-        : host.split('.').slice(1).join('.');
-
+      const baseHost = getBaseHost(host);
       window.location.href = `${protocol}//${baseHost}/select-organization`;
     };
 
     handleNoOrganization();
-  }, [orgLoading, isLoading, isAuthenticated, organization, router, userId]);
+  }, [orgLoading, isLoading, isAuthenticated, organization, router, userId, isRedirecting]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -168,10 +245,10 @@ export default function Home() {
     setIs360Open(true);
   };
 
-  if (isLoading || orgLoading) {
+  if (isLoading || orgLoading || isRedirecting) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
-        Iniciando Kitsune CRM...
+        {isRedirecting ? 'Redirigiendo...' : 'Iniciando Kitsune CRM...'}
       </div>
     );
   }
@@ -180,10 +257,31 @@ export default function Home() {
     return <LoginPage />;
   }
 
-  if (!organization) {
+  // Check if we're on a subdomain - if so, we need an organization
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const subdomain = hostname.split('.')[0];
+  const isMainDomain = !subdomain || subdomain === 'localhost' || subdomain.includes(':');
+  
+  // If on subdomain but no organization, show redirecting (organization provider will handle redirect)
+  if (!isMainDomain && !organization && !orgLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
         Redirigiendo...
+      </div>
+    );
+  }
+  
+  // If on main domain and authenticated but no organization, redirect logic should handle it
+  // But if we get here, something went wrong - show login
+  if (isMainDomain && !organization && !orgLoading) {
+    return <LoginPage />;
+  }
+  
+  // If we have an organization, show the app
+  if (!organization) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
+        Cargando...
       </div>
     );
   }
@@ -240,9 +338,14 @@ export default function Home() {
                 />
               </div>
             )}
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono italic">
-              <div className="w-2 h-2 rounded-full bg-kiriko-teal animate-pulse"></div>
-              Agente: {user.name}
+            <div className="flex flex-col items-end gap-1">
+              <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+                {user.role}
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono italic">
+                <div className="w-2 h-2 rounded-full bg-kiriko-teal animate-pulse"></div>
+                Agente: {user.name}
+              </div>
             </div>
           </div>
         </div>

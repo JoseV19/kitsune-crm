@@ -8,6 +8,7 @@ import { createOrganizationSchema, type CreateOrganizationFormData } from '@/lib
 import { checkSlugAvailability } from '@/lib/services/organization.service';
 import { generateSlug } from '@/lib/utils/slug-generator';
 import { supabase } from '@/lib/services/supabase/client';
+import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 import { Loader2, Upload, Image as ImageIcon, Building2, Globe, LogOut } from 'lucide-react';
 import Image from 'next/image';
 
@@ -139,13 +140,24 @@ export default function OnboardingPage() {
 
       const { organization } = await createResponse.json();
 
+      // Store as last accessed organization
+      localStorage.setItem('last_organization_slug', data.slug);
+
+      // Prepare session transfer for subdomain redirect
+      const { prepareSessionTransfer } = await import('@/lib/services/supabase/session-transfer');
+      const refreshToken = await prepareSessionTransfer();
+
       // Redirect to organization subdomain
       const protocol = window.location.protocol;
       const host = window.location.host;
       const isLocalhost = host.includes('localhost');
-      const baseUrl = isLocalhost 
-        ? `${protocol}//${data.slug}.${host}`
-        : `${protocol}//${data.slug}.${host.split('.').slice(1).join('.')}`;
+      let baseUrl = buildSubdomainUrl(data.slug, host, protocol);
+      
+      // Add session transfer token in hash if available (for localhost subdomain session sharing)
+      // Hash is more secure than query params as it's not sent to server
+      if (refreshToken && isLocalhost) {
+        baseUrl += `#session_token=${encodeURIComponent(refreshToken)}`;
+      }
       
       window.location.href = baseUrl;
     } catch (err) {
