@@ -65,6 +65,7 @@ Before responding to any request, follow these steps:
 - Implement proper error boundaries
 - Use Suspense for async operations
 - Optimize for performance and Web Vitals
+- There should not be more than one react component declared in a file. Each component should be declared in its own separate file.
 
 ### State Management
 
