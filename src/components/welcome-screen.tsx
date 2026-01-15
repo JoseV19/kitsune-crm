@@ -117,24 +117,44 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
         <div className="mt-6 md:mt-0 flex items-center gap-6 bg-slate-900/50 border border-slate-800 p-4 rounded-2xl shadow-lg backdrop-blur-sm group hover:border-kiriko-teal/30 transition-colors">
            
            {/* ANIMACIÓN DEL ZORRO KITSUNE DURMIENDO (SVG PERSONALIZADO) */}
-           <div className="relative w-20 h-16 flex items-center justify-center">
+           <div className="relative w-20 h-16 flex items-center justify-center overflow-visible">
               {/* El Zorro SVG - Con efecto de "respiración" (pulse lento) y brillo neón */}
-              <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-[0_0_8px_rgba(45,212,191,0.6)] animate-pulse [animation-duration:4s]">
-                  {/* Cuerpo enrollado */}
-                  <path d="M58 32C58 46.3594 46.3594 58 32 58C17.6406 58 6 46.3594 6 32C6 17.6406 17.6406 6 32 6" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" className="opacity-50"/>
-                  {/* Cabeza y Orejas */}
-                  <path d="M42 18L32 28L22 18" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  {/* Ojos cerrados */}
-                  <path d="M38 26C38 26 36 28 32 28C28 28 26 26 26 26" stroke="#a855f7" strokeWidth="2" strokeLinecap="round"/>
-                  {/* Cola esponjosa tapando */}
-                  <path d="M32 58C40 58 46 52 46 44C46 38 42 34 36 34" stroke="#2dd4bf" strokeWidth="3" strokeLinecap="round" />
-                  
+              <svg viewBox="0 -100 714 583" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-[0_0_8px_rgba(45,212,191,0.6)] animate-pulse [animation-duration:4s] overflow-visible" style={{fillRule: 'evenodd', clipRule: 'evenodd', strokeLinecap: 'round', strokeLinejoin: 'round', strokeMiterlimit: 1.5, overflow: 'visible'}}>
+                  <g transform="matrix(1,0,0,1,-161.860883,-266.125582)">
+                      {/* Cuerpo principal del zorro enrollado */}
+                      <path d="M718,346C718,346 663.214,303.232 586.328,283.44C527.629,268.33 408.814,260.403 330,298C218.673,351.106 177.714,420.154 168.469,487.182C157.473,566.902 196.073,650.958 263.401,700.706C289.662,720.109 338.707,740.792 395.627,743.669C457.339,746.788 529.309,714.088 590.535,706.443C635.423,700.837 674.073,720.262 701,719C713.619,718.409 682.515,668.747 621.112,624.161C600.612,609.276 544.206,567.095 475.854,564.157C425.004,561.97 347.623,585.976 300.078,589.678C258.334,592.929 244.4,577.091 226,561" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                      {/* Patas delanteras */}
+                      <path d="M298,392C299.884,391.827 341.308,363.092 389.065,377.956C443.113,394.777 502.465,460.418 470,557" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                      {/* Cola */}
+                      <path d="M593,430L553,497C553,497 632.318,553.182 639,589" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                      {/* Cabeza y orejas */}
+                      <path d="M664,628C664,628 691.061,635.139 714,613C736.939,590.861 871,510 871,510L833,438C833,438 847.216,387.414 849.049,365.414C850.699,345.606 844,306 844,306C844,306 817.157,319.709 792.348,340.6C773.073,356.832 755.423,380.173 750,387" 
+                            fill="none" stroke="#a855f7" strokeWidth="9.5px"/>
+                      {/* Detalles de la cola */}
+                      <path d="M608,499C619.117,507.933 633.996,516.61 641,517C648.004,517.39 653.696,573.489 643,587C630.239,603.121 639.301,627.806 675,629" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                      {/* Detalles faciales y cuerpo */}
+                      <path d="M755,377C755,377 723.857,369.675 709.357,370.508C694.857,371.342 666,380 666,380C666,380 637.953,351.574 622.619,340.24C607.64,329.169 574,312 574,312C574,312 573.689,348.949 576.961,367.023C580.461,386.356 593,426 593,426" 
+                            fill="none" stroke="#a855f7" strokeWidth="9.5px"/>
+                      {/* Detalles adicionales */}
+                      <path d="M772,503C772,503 742.657,520.135 731,521C719.343,521.865 709.209,537.542 706,549" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                      {/* Detalles finales */}
+                      <path d="M737,596C737,596 758.212,598.229 778.849,603.58C795.382,607.866 813.472,617.873 825,622C835,625.58 854.953,612.642 850.926,594.349C847.006,576.546 820.422,558.568 808,553" 
+                            fill="none" stroke="#2dd4bf" strokeWidth="9.5px"/>
+                  </g>
                   {/* Zzz Flotantes - Animación de rebote lento */}
                   <g className="animate-bounce [animation-duration:3s]">
-                    <text x="44" y="14" fill="#2dd4bf" fontSize="10" fontFamily="monospace" fontWeight="bold">Z</text>
+                    <text x="600" y="80" fill="#2dd4bf" fontSize="60" fontFamily="monospace" fontWeight="bold">Z</text>
                   </g>
                   <g className="animate-bounce [animation-duration:3s]" style={{animationDelay: '0.5s'}}>
-                    <text x="52" y="10" fill="#a855f7" fontSize="8" fontFamily="monospace">z</text>
+                    <text x="650" y="50" fill="#a855f7" fontSize="80" fontFamily="monospace" fontWeight="bold">z</text>
+                  </g>
+                  <g className="animate-bounce [animation-duration:3s]" style={{animationDelay: '1s'}}>
+                    <text x="700" y="30" fill="#a855f7" fontSize="70" fontFamily="monospace" fontWeight="bold">z</text>
                   </g>
               </svg>
               {/* Brillo de fondo suave */}
