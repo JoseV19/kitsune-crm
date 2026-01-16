@@ -38,6 +38,7 @@ Before responding to any request, follow these steps:
 - Follow DRY (Don't Repeat Yourself) principle
 - Implement early returns for better readability
 - Structure components logically: exports, subcomponents, helpers, types
+- Barrel files are forbidden. Always import directly from the source file. Never create files that only re-export from other files.
 
 ### Naming Conventions
 
