@@ -105,7 +105,7 @@ export default function SignUpPage() {
                     </FormLabel>
                     <FormControl>
                       <div className="relative group">
-                        <User className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
                         <Input
                           {...field}
                           type="text"
@@ -129,7 +129,7 @@ export default function SignUpPage() {
                     </FormLabel>
                     <FormControl>
                       <div className="relative group">
-                        <Mail className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
                         <Input
                           {...field}
                           type="email"
@@ -153,7 +153,7 @@ export default function SignUpPage() {
                     </FormLabel>
                     <FormControl>
                       <div className="relative group">
-                        <Lock className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
                         <Input
                           {...field}
                           type="password"
@@ -177,7 +177,7 @@ export default function SignUpPage() {
                     </FormLabel>
                     <FormControl>
                       <div className="relative group">
-                        <Lock className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={18} />
                         <Input
                           {...field}
                           type="password"

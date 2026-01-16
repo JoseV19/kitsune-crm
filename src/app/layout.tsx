@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { CustomCursor } from "@/components/custom-cursor"; 
 import { SakuraBackground } from "@/components/sakura-background";
-import { OrganizationProviderWrapper } from "@/components/organization-provider-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,11 +26,9 @@ export default function RootLayout({
         {/* 2. FONDO ANIMADO DE PÉTALOS */}
         <SakuraBackground />
         
-        <OrganizationProviderWrapper>
           <div className="relative z-10">
               {children}
           </div>
-        </OrganizationProviderWrapper>
       </body>
     </html>
   );
