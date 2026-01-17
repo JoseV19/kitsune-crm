@@ -1,6 +1,11 @@
+'use client';
+
 import Link from 'next/link';
+import { useUser } from '@clerk/nextjs';
 
 export default function Home() {
+  const { user, isLoaded } = useUser();
+
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
       {/* Fondo Decorativo */}
@@ -12,20 +17,33 @@ export default function Home() {
       <div className="relative z-10 text-center space-y-8">
         <h1 className="text-4xl font-bold text-white mb-4">Landing page (WIP)</h1>
         
-        <div className="flex gap-4 justify-center">
-          <Link
-            href="/auth/sign-in"
-            className="px-6 py-3 bg-kiriko-teal hover:bg-teal-400 text-black font-medium rounded-lg transition-colors"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/auth/sign-up"
-            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg border border-slate-700 transition-colors"
-          >
-            Sign Up
-          </Link>
-        </div>
+        {isLoaded && (
+          <div className="flex gap-4 justify-center">
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="px-6 py-3 bg-kiriko-teal hover:bg-teal-400 text-black font-medium rounded-lg transition-colors"
+              >
+                Ir al Panel
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/auth/sign-in"
+                  className="px-6 py-3 bg-kiriko-teal hover:bg-teal-400 text-black font-medium rounded-lg transition-colors"
+                >
+                  Iniciar Sesión
+                </Link>
+                <Link
+                  href="/auth/sign-up"
+                  className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg border border-slate-700 transition-colors"
+                >
+                  Registrarse
+                </Link>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

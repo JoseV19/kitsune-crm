@@ -3,7 +3,7 @@
 const DashboardClientComponent = () => {
   return (
     <div>
-      <h1>Dashboard Client Component</h1>
+      <h1>Componente del Panel de Control</h1>
     </div>
   );
 };

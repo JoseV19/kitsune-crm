@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,19 +10,85 @@ import { checkSlugAvailability } from '@/lib/services/organization.service';
 import { generateSlug } from '@/lib/utils/slug-generator';
 import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 import { Loader2, Upload, Building2, Globe, LogOut } from 'lucide-react';
-import Image from 'next/image';
-import { useSupabaseClient } from '@/lib/services/supabase/client';
+import Cropper, { type Area } from 'react-easy-crop';
+
+const LOGO_OUTPUT_SIZE = 512;
+
+const loadImageFromFile = (file: File) => {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('No se pudo cargar la imagen del logo'));
+    };
+
+    image.src = objectUrl;
+  });
+};
+
+const createCroppedLogo = async (file: File, cropArea: Area) => {
+  const image = await loadImageFromFile(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = LOGO_OUTPUT_SIZE;
+  canvas.height = LOGO_OUTPUT_SIZE;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('No se pudo preparar el recorte del logo');
+  }
+
+  context.drawImage(
+    image,
+    cropArea.x,
+    cropArea.y,
+    cropArea.width,
+    cropArea.height,
+    0,
+    0,
+    LOGO_OUTPUT_SIZE,
+    LOGO_OUTPUT_SIZE
+  );
+
+  const outputType = file.type || 'image/png';
+  const quality = outputType === 'image/jpeg' ? 0.92 : undefined;
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(new Error('No se pudo recortar el logo'));
+        }
+      },
+      outputType,
+      quality
+    );
+  });
+
+  return new File([blob], file.name, { type: outputType });
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const { session } = useSession();
   const { signOut } = useClerk();
-  const supabase = useSupabaseClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
   const [isLocalhost, setIsLocalhost] = useState(false);
@@ -55,7 +121,13 @@ export default function OnboardingPage() {
     setIsLocalhost(window.location.host.includes('localhost'));
   }, []);
 
-  const organizationName = watch('name');
+  useEffect(() => {
+    if (!previewUrl) return undefined;
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const slug = watch('slug');
   const logoBackground = watch('logo_background_color');
 
@@ -97,7 +169,14 @@ export default function OnboardingPage() {
       const file = e.target.files[0];
       setLogoFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
     }
+  };
+
+  const handleLogoSelectClick = () => {
+    logoInputRef.current?.click();
   };
 
   const handleSignOut = async () => {
@@ -125,9 +204,6 @@ export default function OnboardingPage() {
       }
 
       // Get auth token for API request
-      const token = await session?.getToken({ template: 'supabase' }); // Wait, plan said no template? No, I decided no template.
-      // But server.ts uses getToken() without template? No, I used no template in server.ts.
-      // Let's use `getToken()` without template to match server.ts and supabase client.
       const accessToken = await session?.getToken();
 
       if (!accessToken) {
@@ -140,7 +216,12 @@ export default function OnboardingPage() {
       formData.append('slug', data.slug);
       formData.append('logo_background_color', data.logo_background_color);
       if (logoFile) {
-        formData.append('logo', logoFile);
+        if (croppedAreaPixels) {
+          const croppedLogo = await createCroppedLogo(logoFile, croppedAreaPixels);
+          formData.append('logo', croppedLogo);
+        } else {
+          formData.append('logo', logoFile);
+        }
       }
 
       // Create organization via API route (uses service role to bypass RLS)
@@ -266,31 +347,51 @@ export default function OnboardingPage() {
               <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">
                 Logo de la Organización (Opcional)
               </label>
+              <p className="text-xs text-slate-500 mb-3">
+                El logo se recorta a un cuadrado. Arrastra para encuadrar y ajusta el zoom si hace falta.
+              </p>
               <div className="flex items-center gap-6">
                 <div className="relative">
                   <input
+                    ref={logoInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                    className="sr-only"
+                    id="logo-upload"
                   />
                   <div
                     className={`w-32 h-32 rounded-lg flex items-center justify-center border-2 border-dashed transition-all overflow-hidden ${previewUrl
                       ? 'border-[#00D4BD]'
-                      : 'border-slate-700 hover:border-[#00D4BD]/50 bg-slate-900'
+                      : 'border-slate-700 hover:border-[#00D4BD]/50 bg-slate-900 cursor-pointer'
                       }`}
                     style={{
                       backgroundColor: previewUrl ? logoBackground : undefined,
                     }}
+                    onClick={previewUrl ? undefined : handleLogoSelectClick}
                   >
                     {previewUrl ? (
-                      <Image
-                        src={previewUrl}
-                        alt="Logo Preview"
-                        className="w-full h-full object-contain"
-                        width={128}
-                        height={128}
-                      />
+                      <div
+                        className="relative w-32 h-32 overflow-hidden"
+                        style={{ touchAction: 'none' }}
+                      >
+                        <Cropper
+                          image={previewUrl}
+                          crop={crop}
+                          zoom={zoom}
+                          aspect={1}
+                          cropShape="rect"
+                          objectFit="cover"
+                          showGrid={false}
+                          style={{
+                            containerStyle: { width: '100%', height: '100%' },
+                            mediaStyle: { maxWidth: 'none', maxHeight: 'none' },
+                          }}
+                          onCropChange={setCrop}
+                          onZoomChange={setZoom}
+                          onCropComplete={(_, croppedArea) => setCroppedAreaPixels(croppedArea)}
+                        />
+                      </div>
                     ) : (
                       <div className="text-center">
                         <Upload
@@ -303,6 +404,15 @@ export default function OnboardingPage() {
                       </div>
                     )}
                   </div>
+                  {previewUrl && (
+                    <button
+                      type="button"
+                      onClick={handleLogoSelectClick}
+                      className="mt-3 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400 transition-all hover:border-[#00D4BD]/60 hover:text-[#00D4BD]"
+                    >
+                      Cambiar logo
+                    </button>
+                  )}
                 </div>
 
                 {previewUrl && (
@@ -337,6 +447,23 @@ export default function OnboardingPage() {
                   </div>
                 )}
               </div>
+
+              {previewUrl && (
+                <div className="mt-4">
+                  <label className="block text-xs uppercase tracking-wider text-slate-500 mb-2">
+                    Zoom
+                  </label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={3}
+                    step={0.05}
+                    value={zoom}
+                    onChange={(event) => setZoom(Number(event.target.value))}
+                    className="w-full accent-[#00D4BD]"
+                  />
+                </div>
+              )}
             </div>
 
             {error && (
