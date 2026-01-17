@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { useSession } from '@clerk/nextjs'
 import { useMemo } from 'react'
 
@@ -6,12 +6,26 @@ export function useSupabaseClient() {
   const { session } = useSession()
 
   return useMemo(() => {
-    return createBrowserClient(
+    return createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       {
-        accessToken: async () => {
-          return await session?.getToken() ?? null
+        global: {
+          fetch: async (url, options = {}) => {
+            const token = await session?.getToken()
+            const headers = new Headers(options.headers)
+            if (token) {
+              headers.set('Authorization', `Bearer ${token}`)
+            }
+            return fetch(url, {
+              ...options,
+              headers,
+            })
+          },
+        },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
         },
       }
     )
@@ -19,11 +33,21 @@ export function useSupabaseClient() {
 }
 
 export function createClient(accessToken?: string | null) {
-  return createBrowserClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
-      accessToken: async () => accessToken ?? null,
+      global: {
+        headers: accessToken
+          ? {
+              Authorization: `Bearer ${accessToken}`,
+            }
+          : {},
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
     }
   )
 }
