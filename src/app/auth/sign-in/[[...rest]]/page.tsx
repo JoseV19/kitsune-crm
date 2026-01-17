@@ -1,6 +1,7 @@
 'use client';
 
 import { SignIn } from '@clerk/nextjs';
+import { shadcn } from '@clerk/themes';
 
 export default function SignInPage() {
   return (
@@ -14,16 +15,7 @@ export default function SignInPage() {
       <div className="relative z-10 w-full max-w-md p-8 flex justify-center">
         <SignIn 
           appearance={{
-            elements: {
-              formButtonPrimary: 'bg-kiriko-teal hover:bg-teal-400 text-black',
-              footerActionLink: 'text-kiriko-teal hover:text-teal-400',
-              card: 'bg-slate-900/50 backdrop-blur-md border border-slate-800',
-              headerTitle: 'text-white',
-              headerSubtitle: 'text-slate-400',
-              socialButtonsBlockButton: 'text-white border-slate-700 hover:bg-slate-800',
-              formFieldLabel: 'text-slate-400',
-              formFieldInput: 'bg-black/50 border-slate-700 text-white',
-            }
+            theme: shadcn
           }}
           routing="path" 
           path="/auth/sign-in" 

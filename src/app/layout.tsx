@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { CustomCursor } from "@/components/custom-cursor";
 import { SakuraBackground } from "@/components/sakura-background";
+import { esES } from "@clerk/localizations";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider localization={esES}>
       <html lang="es">
         <body className={`${inter.className} bg-black`}>
           {/* <CustomCursor /> */}

@@ -1,76 +1,3 @@
----
-name: Clerk Authentication Integration
-overview: Replace Supabase authentication with Clerk throughout the Next.js App Router application, including middleware, layout provider, sign-in/sign-up pages, client components, server components, and API routes.
-todos:
-  - id: install-clerk
-    content: Install @clerk/nextjs package and update package.json
-    status: completed
-  - id: configure-clerk-supabase
-    content: Configure Clerk for Supabase integration (Clerk Dashboard + Supabase Dashboard setup)
-    status: completed
-    dependencies:
-      - install-clerk
-  - id: update-supabase-clients
-    content: Update Supabase client libraries to use Clerk session tokens per official docs (src/lib/services/supabase/client.ts and server.ts)
-    status: completed
-    dependencies:
-      - install-clerk
-      - configure-clerk-supabase
-  - id: update-middleware
-    content: Replace Supabase middleware with clerkMiddleware() in src/proxy.ts
-    status: completed
-    dependencies:
-      - install-clerk
-  - id: update-layout
-    content: Add ClerkProvider wrapper to src/app/layout.tsx
-    status: completed
-    dependencies:
-      - install-clerk
-  - id: replace-signin-page
-    content: Replace custom Supabase sign-in form with Clerk SignIn component in src/app/auth/sign-in/page.tsx
-    status: completed
-    dependencies:
-      - install-clerk
-  - id: replace-signup-page
-    content: Replace custom Supabase sign-up form with Clerk SignUp component in src/app/auth/sign-up/page.tsx
-    status: completed
-    dependencies:
-      - install-clerk
-  - id: update-client-components
-    content: Replace Supabase auth.getUser() with useUser() in all client components (app/page.tsx, sidebar.tsx, organization-context.tsx, use-is-org-owner.ts, client-details-panel.tsx, onboarding/page.tsx, select-organization/page.tsx, set-password/page.tsx)
-    status: completed
-    dependencies:
-      - update-layout
-  - id: update-api-routes
-    content: Replace Supabase token verification with Clerk auth() in all API routes (users/route.ts, users/[userId]/route.ts, organizations/route.ts, check-user/route.ts, set-password/route.ts)
-    status: completed
-    dependencies:
-      - update-middleware
-  - id: update-server-services
-    content: Replace Supabase auth calls with Clerk auth() in server services (organization.service.ts, user.service.ts)
-    status: completed
-    dependencies:
-      - update-middleware
-  - id: update-logout
-    content: Replace all supabase.auth.signOut() calls with Clerk signOut() across all components
-    status: completed
-    dependencies:
-      - update-client-components
-  - id: env-setup
-    content: Document required Clerk environment variables (NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY) with placeholders
-    status: completed
-  - id: update-database-schema
-    content: Update database schema to change user_id columns from UUID to TEXT for Clerk compatibility
-    status: completed
-    dependencies:
-      - configure-clerk-supabase
-  - id: update-rls-policies
-    content: Update all RLS policies to use auth.jwt()->>'sub' instead of auth.uid() (see plan document for complete SQL queries)
-    status: completed
-    dependencies:
-      - update-database-schema
----
-
 # Clerk Authentication Integration Plan
 
 ## Overview
@@ -323,33 +250,332 @@ const { userId } = await auth();
 
 ### Step 1: Update Schema to Use Text for User IDs
 
-Clerk user IDs are strings (not UUIDs), so we need to update the schema first:
+Clerk user IDs are strings (not UUIDs), so we need to update the schema first. Based on the actual database schema, the following columns need to be updated:
+
+**Tables and columns that reference user_id as UUID:**
+
+1. **`activity_log.user_id`** - `uuid`, nullable, default `auth.uid()`
+2. **`clients.owner_id`** - `uuid`, nullable, default `auth.uid()`
+3. **`user_organization_memberships.user_id`** - `uuid`, NOT NULL, references `auth.users(id)`
+4. **`user_profiles.id`** - `uuid`, NOT NULL (primary key, represents user_id)
+
+**Pre-Migration: Check for Constraints**
+
+Before running the migration, run this query in Supabase's SQL editor to identify all constraints on the columns we're modifying:
 
 ```sql
--- Update user_organization_memberships table
-ALTER TABLE public.user_organization_memberships 
-  ALTER COLUMN user_id TYPE text;
+-- Check all constraints on user_id columns
+SELECT 
+  tc.table_name,
+  tc.constraint_name,
+  tc.constraint_type,
+  kcu.column_name,
+  ccu.table_name AS foreign_table_name,
+  ccu.column_name AS foreign_column_name,
+  cc.check_clause
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+  ON tc.constraint_name = kcu.constraint_name
+  AND tc.table_schema = kcu.table_schema
+LEFT JOIN information_schema.constraint_column_usage AS ccu
+  ON ccu.constraint_name = tc.constraint_name
+  AND ccu.table_schema = tc.table_schema
+LEFT JOIN information_schema.check_constraints AS cc
+  ON cc.constraint_name = tc.constraint_name
+  AND cc.constraint_schema = tc.table_schema
+WHERE tc.table_schema = 'public'
+  AND tc.table_name IN ('activity_log', 'clients', 'user_organization_memberships', 'user_profiles')
+  AND kcu.column_name IN ('user_id', 'owner_id', 'id')
+ORDER BY tc.table_name, tc.constraint_type, tc.constraint_name;
 
--- Remove foreign key constraint to auth.users (no longer exists)
+-- Also check indexes on these columns
+SELECT 
+  tablename,
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN ('activity_log', 'clients', 'user_organization_memberships', 'user_profiles')
+  AND (
+    indexdef LIKE '%user_id%' 
+    OR indexdef LIKE '%owner_id%'
+    OR (tablename = 'user_profiles' AND indexdef LIKE '%id%')
+  )
+ORDER BY tablename, indexname;
+```
+
+**Query Results Analysis:**
+
+Based on the query results, the following indexes/constraints exist on the columns we're modifying:
+
+1. **`user_organization_memberships` table:**
+
+   - `idx_user_org_memberships_user_id` - B-tree index on `user_id`
+   - `idx_user_org_memberships_active` - Partial B-tree index on `(user_id, is_active)` WHERE `is_active = true`
+   - `user_organization_memberships_user_id_organization_id_key` - **UNIQUE constraint** on `(user_id, organization_id)` (created by the table's `UNIQUE` constraint)
+
+2. **`user_profiles` table:**
+
+   - `user_profiles_pkey` - **PRIMARY KEY** index on `id`
+
+**Important**:
+
+- The UNIQUE constraint on `(user_id, organization_id)` will be **automatically preserved** when we change the column type
+- The PRIMARY KEY on `user_profiles.id` will be **automatically preserved** when we change the column type
+- All other indexes will be **automatically recreated** by PostgreSQL when changing column types
+- Since all tables are empty, the migration is straightforward and safe
+
+**Migration SQL:**
+
+**CRITICAL**: PostgreSQL cannot alter column types if they're referenced by RLS policies. We must drop policies first, alter columns, then recreate policies with Clerk-compatible syntax.
+
+```sql
+-- ============================================
+-- STEP 1: Drop RLS Policies that reference columns we're changing
+-- ============================================
+-- CRITICAL: We must drop ALL policies that reference user_organization_memberships.user_id
+-- or user_profiles.id in their expressions, not just policies on those tables.
+-- Policies on other tables (organizations, clients, etc.) also reference these columns
+-- in subqueries, which prevents column type changes.
+
+-- Drop policies on client_activities
+DROP POLICY IF EXISTS "Users can read activities in their organization" ON public.client_activities;
+DROP POLICY IF EXISTS "Users can insert activities in their organization" ON public.client_activities;
+
+-- Drop policies on clients
+DROP POLICY IF EXISTS "Admins can delete clients" ON public.clients;
+DROP POLICY IF EXISTS "Users can read clients in their organization" ON public.clients;
+DROP POLICY IF EXISTS "Users can insert clients in their organization" ON public.clients;
+DROP POLICY IF EXISTS "Users can update clients in their organization" ON public.clients;
+
+-- Drop policies on contacts
+DROP POLICY IF EXISTS "Users can update contacts in their organization" ON public.contacts;
+DROP POLICY IF EXISTS "Users can read contacts in their organization" ON public.contacts;
+DROP POLICY IF EXISTS "Users can insert contacts in their organization" ON public.contacts;
+DROP POLICY IF EXISTS "Users can delete contacts in their organization" ON public.contacts;
+
+-- Drop policies on deal_items
+DROP POLICY IF EXISTS "Users can delete deal items in their organization" ON public.deal_items;
+DROP POLICY IF EXISTS "Users can insert deal items in their organization" ON public.deal_items;
+DROP POLICY IF EXISTS "Users can read deal items in their organization" ON public.deal_items;
+DROP POLICY IF EXISTS "Users can update deal items in their organization" ON public.deal_items;
+
+-- Drop policies on deals
+DROP POLICY IF EXISTS "Admins can delete deals" ON public.deals;
+DROP POLICY IF EXISTS "Users can read deals in their organization" ON public.deals;
+DROP POLICY IF EXISTS "Users can insert deals in their organization" ON public.deals;
+DROP POLICY IF EXISTS "Users can update deals in their organization" ON public.deals;
+
+-- Drop policies on organization_settings
+DROP POLICY IF EXISTS "Admins can manage organization settings" ON public.organization_settings;
+DROP POLICY IF EXISTS "Users can read settings in their organization" ON public.organization_settings;
+
+-- Drop policies on organizations
+DROP POLICY IF EXISTS "Owners can update their organization" ON public.organizations;
+DROP POLICY IF EXISTS "Users can read their organization" ON public.organizations;
+
+-- Drop policies on products
+DROP POLICY IF EXISTS "Users can insert products in their organization" ON public.products;
+DROP POLICY IF EXISTS "Admins can delete products" ON public.products;
+DROP POLICY IF EXISTS "Users can read products in their organization" ON public.products;
+DROP POLICY IF EXISTS "Users can update products in their organization" ON public.products;
+
+-- Drop policies on user_organization_memberships
+DROP POLICY IF EXISTS "Admins can insert memberships" ON public.user_organization_memberships;
+DROP POLICY IF EXISTS "Users can read their own memberships" ON public.user_organization_memberships;
+DROP POLICY IF EXISTS "Admins can update memberships in their organizations" ON public.user_organization_memberships;
+
+-- Drop policies on user_profiles (references id column which is user_id)
+DROP POLICY IF EXISTS "Users can read profiles in their organization" ON public.user_profiles;
+DROP POLICY IF EXISTS "Admins can insert profiles" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.user_profiles;
+
+-- Drop development policies (Spanish-named) that are too permissive
+-- These will be replaced with proper organization-scoped policies
+DROP POLICY IF EXISTS "Acceso total development" ON public.activity_log;
+DROP POLICY IF EXISTS "Permitir todo productos" ON public.products;
+
+-- Drop storage policies that reference user_id or are too permissive (Spanish-named)
+-- Note: storage.objects is in the storage schema, not public schema
+
+-- Drop existing organization-scoped policies (need to be recreated with Clerk syntax)
+DROP POLICY IF EXISTS "Users can manage client logos" ON storage.objects;
+DROP POLICY IF EXISTS "Users can manage deal attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Users can manage product images" ON storage.objects;
+
+-- Drop Spanish-named permissive policies (will be replaced with organization-scoped or permissive org logos)
+DROP POLICY IF EXISTS "Permitir actualizar logos" ON storage.objects;
+DROP POLICY IF EXISTS "Permitir adjuntos publicos" ON storage.objects;
+DROP POLICY IF EXISTS "Permitir subir logos publicamente" ON storage.objects;
+DROP POLICY IF EXISTS "Permitir ver adjuntos" ON storage.objects;
+
+-- ============================================
+-- STEP 2: Update Schema - Change Column Types
+-- ============================================
+
+-- 1. Update activity_log.user_id
+-- Remove default value that uses auth.uid() (won't work with Clerk)
+ALTER TABLE public.activity_log 
+  ALTER COLUMN user_id DROP DEFAULT;
+
+-- Change column type from uuid to text
+ALTER TABLE public.activity_log 
+  ALTER COLUMN user_id TYPE text USING user_id::text;
+
+-- 2. Update clients.owner_id
+-- Remove default value that uses auth.uid() (won't work with Clerk)
+ALTER TABLE public.clients 
+  ALTER COLUMN owner_id DROP DEFAULT;
+
+-- Change column type from uuid to text
+ALTER TABLE public.clients 
+  ALTER COLUMN owner_id TYPE text USING owner_id::text;
+
+-- 3. Update user_organization_memberships.user_id
+-- Remove foreign key constraint to auth.users (no longer exists with Clerk)
 ALTER TABLE public.user_organization_memberships 
   DROP CONSTRAINT IF EXISTS user_organization_memberships_user_id_fkey;
 
--- Update user_profiles table if it has user_id references
--- (Assuming user_profiles.id is the user_id)
-ALTER TABLE public.user_profiles 
-  ALTER COLUMN id TYPE text;
+-- Change column type from uuid to text
+-- Note: Since table is empty, USING clause is safe but not strictly necessary
+-- PostgreSQL will automatically:
+--   - Recreate all indexes (idx_user_org_memberships_user_id, idx_user_org_memberships_active)
+--   - Preserve the UNIQUE constraint on (user_id, organization_id)
+ALTER TABLE public.user_organization_memberships 
+  ALTER COLUMN user_id TYPE text USING user_id::text;
 
--- Update any other tables that reference user_id as UUID
--- Check your schema for other tables that might need updating
+-- 4. Update user_profiles.id
+-- Remove foreign key constraint to auth.users if it exists
+ALTER TABLE public.user_profiles
+  DROP CONSTRAINT IF EXISTS user_profiles_id_fkey;
+
+-- Change column type from uuid to text
+-- Note: This is the primary key, so PostgreSQL will automatically:
+--   - Preserve the PRIMARY KEY constraint
+--   - Recreate the primary key index (user_profiles_pkey)
+-- Since table is empty, USING clause is safe but not strictly necessary
+ALTER TABLE public.user_profiles 
+  ALTER COLUMN id TYPE text USING id::text;
+
+-- 5. Add organization_id to activity_log table
+-- This enables proper organization-scoped access control
+ALTER TABLE public.activity_log
+  ADD COLUMN IF NOT EXISTS organization_id uuid REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+-- Create index on organization_id for better query performance
+CREATE INDEX IF NOT EXISTS idx_activity_log_organization_id 
+  ON public.activity_log(organization_id);
+
+-- ============================================
+-- STEP 3: Recreate RLS Policies with Clerk-compatible syntax
+-- ============================================
+-- Note: These policies now use auth.jwt()->>'sub' instead of auth.uid()
+-- The complete policy recreation SQL is in "Step 2: Update RLS Policies for Clerk" section below
+```
+
+**Important Notes:**
+
+- **CRITICAL ORDER**: Policies must be dropped BEFORE altering column types, then recreated AFTER with Clerk-compatible syntax
+- Since all tables are empty, the `USING user_id::text` clause is safe but not strictly necessary (no data conversion needed)
+- **Constraints preserved automatically:**
+  - UNIQUE constraint on `user_organization_memberships(user_id, organization_id)` will be preserved
+  - PRIMARY KEY constraint on `user_profiles(id)` will be preserved
+- **Indexes automatically recreated:**
+  - `idx_user_org_memberships_user_id` on `user_organization_memberships.user_id`
+  - `idx_user_org_memberships_active` partial index on `user_organization_memberships(user_id, is_active)`
+  - `user_profiles_pkey` primary key index on `user_profiles.id`
+- Default values using `auth.uid()` are removed since Clerk authentication doesn't provide this function
+- Foreign key constraints to `auth.users(id)` are removed since we're no longer using Supabase Auth
+- **No explicit index recreation needed** - PostgreSQL handles this automatically during type conversion
+- **Policy recreation**: After STEP 2 (column type changes) above, proceed to "Step 2: Update RLS Policies for Clerk" section below to recreate all RLS policies with `auth.jwt()->>'sub'` instead of `auth.uid()`
+
+**Post-Migration Verification:**
+
+After running the migration, verify indexes were recreated correctly:
+
+```sql
+-- Verify indexes on user_id columns still exist
+SELECT 
+  tablename,
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN ('activity_log', 'clients', 'user_organization_memberships', 'user_profiles')
+  AND (
+    indexdef LIKE '%user_id%' 
+    OR indexdef LIKE '%owner_id%'
+    OR (tablename = 'user_profiles' AND indexdef LIKE '%id%')
+  )
+ORDER BY tablename, indexname;
 ```
 
 ### Step 2: Update RLS Policies for Clerk
 
 Replace all instances of `auth.uid()` with `auth.jwt()->>'sub'` (Clerk user ID is in the JWT 'sub' claim).
 
-**Important**: Run these queries in order. Each policy is dropped and recreated with the updated Clerk-compatible condition.
+**Important**:
 
+- Run these queries in order. Each policy is dropped and recreated with the updated Clerk-compatible condition.
+- **Note**: ALL policies that reference `user_organization_memberships.user_id` or `user_profiles.id` were already dropped in STEP 1 above (to allow column type changes). The `DROP POLICY IF EXISTS` statements here are safe but redundant - they ensure the policies are dropped even if STEP 1 wasn't run.
 ```sql
+-- ============================================
+-- activity_log policies
+-- ============================================
+-- Replacing "Acceso total development" with proper organization-scoped policies
+-- Now using organization_id column (added in STEP 2 above)
+
+DROP POLICY IF EXISTS "Acceso total development" ON public.activity_log;
+
+CREATE POLICY "Users can read activity logs in their organization" ON public.activity_log
+  FOR SELECT
+  TO public
+  USING (
+    organization_id IN (
+      SELECT user_organization_memberships.organization_id
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  );
+
+CREATE POLICY "Users can insert activity logs in their organization" ON public.activity_log
+  FOR INSERT
+  TO public
+  WITH CHECK (
+    organization_id IN (
+      SELECT user_organization_memberships.organization_id
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  );
+
+CREATE POLICY "Users can update activity logs in their organization" ON public.activity_log
+  FOR UPDATE
+  TO public
+  USING (
+    organization_id IN (
+      SELECT user_organization_memberships.organization_id
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  );
+
+CREATE POLICY "Admins can delete activity logs in their organization" ON public.activity_log
+  FOR DELETE
+  TO public
+  USING (
+    organization_id IN (
+      SELECT user_organization_memberships.organization_id
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+        AND user_organization_memberships.role IN ('owner', 'admin')
+    )
+  );
+
 -- ============================================
 -- client_activities policies
 -- ============================================
@@ -689,7 +915,9 @@ CREATE POLICY "Users can read their organization" ON public.organizations
 -- ============================================
 -- products policies
 -- ============================================
+-- Replacing "Permitir todo productos" with proper organization-scoped policies
 
+DROP POLICY IF EXISTS "Permitir todo productos" ON public.products;
 DROP POLICY IF EXISTS "Users can insert products in their organization" ON public.products;
 DROP POLICY IF EXISTS "Admins can delete products" ON public.products;
 DROP POLICY IF EXISTS "Users can read products in their organization" ON public.products;
@@ -832,10 +1060,113 @@ CREATE POLICY "Users can update their own profile" ON public.user_profiles
   USING (id = (auth.jwt()->>'sub'));
 
 -- ============================================
--- Note: Development policies (activity_log, products "Permitir todo productos")
--- These are intentionally permissive and don't need updating
+-- storage.objects policies
 -- ============================================
+-- Storage buckets:
+-- - 'logos': Organization logos ({org_id}/logo.{ext}) and client logos ({org_id}/clients/{client_id}.{ext})
+-- - 'deal_attachments': Deal attachments ({org_id}/deals/{deal_id}/...)
+-- - 'product-images': Product images ({org_id}/products/{product_id}.{ext})
+-- - 'attachments': Public documents (kept as-is with anon access)
+
+-- Organization logos: Permissive for onboarding (users can upload before full org setup)
+-- Path format: {organization_id}/logo.{ext}
+CREATE POLICY "Users can manage organization logos" ON storage.objects
+  FOR ALL
+  TO public
+  USING (
+    bucket_id = 'logos'
+    AND name ~ '^[^/]+/logo\.'
+  )
+  WITH CHECK (
+    bucket_id = 'logos'
+    AND name ~ '^[^/]+/logo\.'
+  );
+
+-- Client logos: Organization-scoped
+-- Path format: {organization_id}/clients/{client_id}.{ext}
+-- Uses storage.foldername() function like existing policies
+DROP POLICY IF EXISTS "Users can manage client logos" ON storage.objects;
+
+CREATE POLICY "Users can manage client logos" ON storage.objects
+  FOR ALL
+  TO public
+  USING (
+    bucket_id = 'logos'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+    AND name ~ '^[^/]+/clients/'
+  )
+  WITH CHECK (
+    bucket_id = 'logos'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+    AND name ~ '^[^/]+/clients/'
+  );
+
+-- Deal attachments: Organization-scoped
+-- Path format: {organization_id}/deals/{deal_id}/...
+DROP POLICY IF EXISTS "Users can manage deal attachments" ON storage.objects;
+
+CREATE POLICY "Users can manage deal attachments" ON storage.objects
+  FOR ALL
+  TO public
+  USING (
+    bucket_id = 'deal_attachments'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'deal_attachments'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  );
+
+-- Product images: Organization-scoped
+-- Path format: {organization_id}/products/{product_id}.{ext}
+DROP POLICY IF EXISTS "Users can manage product images" ON storage.objects;
+
+CREATE POLICY "Users can manage product images" ON storage.objects
+  FOR ALL
+  TO public
+  USING (
+    bucket_id = 'product-images'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'product-images'
+    AND (storage.foldername(name))[1] IN (
+      SELECT user_organization_memberships.organization_id::text
+      FROM user_organization_memberships
+      WHERE user_organization_memberships.user_id = (auth.jwt()->>'sub')
+        AND user_organization_memberships.is_active = true
+    )
+  );
+
+-- Note: "Documents 1mt4rzk_*" policies for 'attachments' bucket with 'anon' role are kept as-is
+-- These appear to be for public document access and don't reference user_id
 ```
+
 
 ### Step 3: Verify Policies
 
