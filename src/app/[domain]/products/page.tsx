@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useOrganizationId } from '@/lib/contexts/organization-context';
+import { useParams } from 'next/navigation';
+import { useOrganization, useOrganizationId } from '@/lib/contexts/organization-context';
 import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { useStorageService } from '@/lib/services/supabase/storage.service';
 import { Product } from '@/types/crm';
@@ -11,6 +12,9 @@ import {
 import Link from 'next/link';
 
 export default function ProductsPage() {
+  const params = useParams();
+  const domain = params.domain as string;
+  const { organization } = useOrganization();
   const organizationId = useOrganizationId();
   const db = useDatabaseService();
   const storage = useStorageService();
@@ -24,11 +28,13 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
-    if (organizationId) {
-      db.setOrganizationId(organizationId);
-      storage.setOrganizationId(organizationId);
+    if (!organizationId) {
+      return;
     }
-  }, [organizationId]);
+
+    db.setOrganizationId(organizationId);
+    storage.setOrganizationId(organizationId);
+  }, [organizationId, db, storage]);
 
   useEffect(() => {
     if (organizationId) {
@@ -37,8 +43,10 @@ export default function ProductsPage() {
   }, [organizationId]);
 
   const fetchProducts = async () => {
+    if (!organizationId) return;
     setIsLoading(true);
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getProducts();
       setProducts(data);
     } catch (error) {
@@ -51,9 +59,17 @@ export default function ProductsPage() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!organizationId) {
+      alert('Error al guardar: Organización no seleccionada.');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+
       let finalImageUrl = currentProduct.image_url;
 
       if (imageFile && currentProduct.id) {
@@ -98,8 +114,9 @@ export default function ProductsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este producto del catálogo?')) return;
+    if (!confirm('¿Eliminar este producto del catálogo?') || !organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       await db.deleteProduct(id);
       fetchProducts();
     } catch (error: any) {
@@ -128,7 +145,8 @@ export default function ProductsPage() {
       <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <Package className="text-kiriko-teal" size={32} /> Catálogo Zionak
+            <Package className="text-kiriko-teal" size={32} />{' '}
+            {`Catálogo ${organization?.name ?? 'tu empresa'}`}
           </h1>
           <p className="text-slate-400 text-sm mt-1">Gestiona tus productos y servicios</p>
         </div>
@@ -147,7 +165,7 @@ export default function ProductsPage() {
           <button onClick={openNew} className="bg-kiriko-teal text-black font-bold px-4 py-2 rounded-lg hover:bg-teal-400 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(45,212,191,0.3)]">
             <Plus size={18} /> Nuevo Producto
           </button>
-          <Link href="/" className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700">Volver</Link>
+          <Link href={`/${domain}/dashboard`} className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700">Volver</Link>
         </div>
       </div>
 

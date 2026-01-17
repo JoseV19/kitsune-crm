@@ -46,7 +46,7 @@ export default function DashboardView() {
         if (organizationId) {
             db.setOrganizationId(organizationId);
         }
-    }, [organizationId]);
+    }, [organizationId, db]);
 
     useEffect(() => {
         if (organizationId) {
@@ -56,6 +56,9 @@ export default function DashboardView() {
 
     const fetchAnalytics = async () => {
         if (!organizationId) return;
+
+        // Ensure organization ID is set
+        db.setOrganizationId(organizationId);
 
         // Use direct supabase for complex query with joins
         const { data: deals } = await supabase

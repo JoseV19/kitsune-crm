@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useUser, useClerk, useSession } from "@clerk/nextjs";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import Sidebar from "@/components/sidebar";
 import KanbanBoard from "@/components/kanban-board";
@@ -16,20 +16,20 @@ import { Search } from "lucide-react";
 interface UserData {
   name: string;
   role: string;
-  avatar: string;
+  avatar?: string;
 }
 
 export default function TenantDashboard() {
   const router = useRouter();
   const { user: clerkUser, isLoaded: isAuthLoaded, isSignedIn } = useUser();
+  const { session } = useSession();
   const { signOut } = useClerk();
   const { organization, isLoading: orgLoading } = useOrganization();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [user, setUser] = useState<UserData>({
     name: "Usuario",
     role: "Miembro",
-    avatar: "",
   });
 
   const [currentView, setCurrentView] = useState<"home" | "kanban" | "dashboard">("home");
@@ -40,36 +40,72 @@ export default function TenantDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // Fetch user profile from database
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!isAuthLoaded || !isSignedIn || !clerkUser || !session) return;
+
+      try {
+        const accessToken = await session.getToken();
+        if (!accessToken) return;
+
+        const response = await fetch('/api/users/profile', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const profile = data.profile;
+          
+          // Use code_name if available, otherwise fall back to full_name or Clerk name
+          const displayName = profile?.code_name || profile?.full_name || clerkUser.fullName || clerkUser.firstName || "Usuario";
+          const displayRole = profile?.display_role || "Miembro";
+
+          setUser({
+            name: displayName,
+            role: displayRole,
+          });
+        } else {
+          // Fallback to Clerk data if API fails
+          setUser({
+            name: clerkUser.fullName || clerkUser.firstName || "Usuario",
+            role: "Miembro",
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        // Fallback to Clerk data on error
+        setUser({
+          name: clerkUser.fullName || clerkUser.firstName || "Usuario",
+          role: "Miembro",
+        });
+      }
+    };
+
+    if (isAuthLoaded && isSignedIn && clerkUser && session) {
+      fetchUserProfile();
+    }
+  }, [isAuthLoaded, isSignedIn, clerkUser?.id, session]);
+
   useEffect(() => {
     const checkAuth = async () => {
       if (!isAuthLoaded) return;
 
       if (isSignedIn && clerkUser) {
         setIsAuthenticated(true);
-
-        setUser((prev) => ({
-          ...prev,
-          name: clerkUser.fullName || clerkUser.firstName || "Usuario",
-          avatar: clerkUser.imageUrl || prev.avatar,
-        }));
-
-        const savedUser = localStorage.getItem("kitsune_user");
-        if (savedUser) {
-          try {
-            JSON.parse(savedUser);
-          } catch (e) {
-            // Invalid JSON, use defaults
-          }
-        }
       } else {
         setIsAuthenticated(false);
         router.push('/');
       }
-      setIsLoading(false);
+      setIsInitialLoading(false);
     };
 
     checkAuth();
-  }, [isAuthLoaded, isSignedIn, clerkUser, router]);
+    // Only depend on user ID, not the entire user object to avoid reloads on profile updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthLoaded, isSignedIn, clerkUser?.id, router]);
 
   const handleLogout = async () => {
     await signOut();
@@ -82,7 +118,7 @@ export default function TenantDashboard() {
     setIs360Open(true);
   };
 
-  if (isLoading || orgLoading || isRedirecting) {
+  if (isInitialLoading || orgLoading || isRedirecting) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
         {isRedirecting ? 'Redirigiendo...' : 'Iniciando Kitsune CRM...'}
@@ -211,9 +247,41 @@ export default function TenantDashboard() {
       />
       <ProfileModal
         isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+        onClose={() => {
+          setIsProfileOpen(false);
+          // Refetch user profile after closing modal to get updated data
+          if (isAuthLoaded && isSignedIn && clerkUser && session) {
+            const refetchProfile = async () => {
+              try {
+                const accessToken = await session.getToken();
+                if (!accessToken) return;
+
+                const response = await fetch('/api/users/profile', {
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                  },
+                });
+
+                if (response.ok) {
+                  const data = await response.json();
+                  const profile = data.profile;
+                  const displayName = profile?.code_name || profile?.full_name || clerkUser.fullName || clerkUser.firstName || "Usuario";
+                  const displayRole = profile?.display_role || "Miembro";
+                  setUser({ name: displayName, role: displayRole });
+                }
+              } catch (error) {
+                console.error('Error refetching user profile:', error);
+              }
+            };
+            refetchProfile();
+          }
+        }}
         currentUser={user}
-        onSave={(updated) => { setUser(updated); localStorage.setItem("kitsune_user", JSON.stringify(updated)); }}
+        onSave={(updated) => { 
+          setUser(updated);
+          // Keep localStorage for backward compatibility, but database is now the source of truth
+          localStorage.setItem("kitsune_user", JSON.stringify(updated));
+        }}
       />
     </div>
   );

@@ -16,6 +16,8 @@ export const signupSchema = loginSchema.extend({
 export const profileSchema = z.object({
   full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional().nullable(),
   avatar_url: z.string().url().optional().nullable(),
+  code_name: z.string().optional().nullable(),
+  display_role: z.string().optional().nullable(),
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;

@@ -102,6 +102,34 @@ const searchParams = await props.searchParams
 
 Follow Next.js docs for Data Fetching, Rendering, and Routing.
 
+### Database Service and Organization Context
+
+- **ALWAYS** set the organization ID on `DatabaseService` and `StorageService` instances before any database operations
+- When using `useDatabaseService()` or `useStorageService()` hooks:
+  1. Add the service instances (`db`, `storage`) to the `useEffect` dependency array that sets the organization ID
+  2. Add organization ID checks at the start of all async functions that perform database operations
+  3. Explicitly call `db.setOrganizationId(organizationId)` and `storage.setOrganizationId(organizationId)` right before each database operation as a defensive measure
+- Pattern to follow:
+  ```typescript
+  useEffect(() => {
+    if (organizationId) {
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
+    }
+  }, [organizationId, db, storage]);
+
+  const fetchData = async () => {
+    if (!organizationId) return;
+    try {
+      db.setOrganizationId(organizationId); // Defensive: ensure it's set
+      const data = await db.getClients();
+      // ...
+    } catch (error) {
+      // ...
+    }
+  };
+  ```
+- This prevents "Organization context is required" errors that occur when the service instance doesn't have the organization ID set before operations
 
 ### Zod usage
 - `z.string().email()` is deprecated, use `z.email()` instead

@@ -25,7 +25,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
     if (organizationId) {
       db.setOrganizationId(organizationId);
     }
-  }, [organizationId]);
+  }, [organizationId, db]);
 
   useEffect(() => {
     if (isOpen && deal) {
@@ -35,7 +35,9 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   }, [isOpen, deal]);
 
   const fetchItems = async () => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getDealItems(deal.id);
       setItems(data);
     } catch (error) {
@@ -45,7 +47,9 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const fetchProducts = async () => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getProducts();
       setProducts(data.slice(0, 50)); // Limit to 50
     } catch (error) {
@@ -55,6 +59,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const handleAddItem = async (product: Product) => {
+    if (!organizationId) return;
     const exists = items.find(i => i.product_id === product.id);
     if (exists) {
       alert("Este producto ya está en la lista.");
@@ -62,12 +67,12 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
     }
 
     try {
+      db.setOrganizationId(organizationId);
       const newItem = {
         deal_id: deal.id,
         product_id: product.id,
         quantity: 1,
         unit_price: product.unit_price,
-        total_price: product.unit_price,
       };
 
       const data = await db.createDealItem(newItem);
@@ -81,7 +86,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const handleUpdateQuantity = async (itemId: string, newQty: number) => {
-    if (newQty < 1) return;
+    if (newQty < 1 || !organizationId) return;
     
     try {
       // Optimistic UI update
@@ -92,9 +97,10 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
       );
       setItems(updatedItems);
 
+      db.setOrganizationId(organizationId);
       await db.updateDealItem(itemId, { 
-        quantity: newQty, 
-        total_price: newQty * updatedItems.find(i => i.id === itemId)!.unit_price 
+        quantity: newQty,
+        unit_price: updatedItems.find(i => i.id === itemId)!.unit_price
       });
       updateDealTotal(updatedItems);
     } catch (error) {
@@ -105,9 +111,11 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const handleDeleteItem = async (itemId: string) => {
+    if (!organizationId) return;
     try {
       const updatedItems = items.filter(i => i.id !== itemId);
       setItems(updatedItems);
+      db.setOrganizationId(organizationId);
       await db.deleteDealItem(itemId);
       updateDealTotal(updatedItems);
     } catch (error) {
@@ -118,7 +126,9 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   };
 
   const updateDealTotal = async (currentItems: DealItem[]) => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const total = currentItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
       await db.updateDeal(deal.id, { value: total });
     } catch (error) {

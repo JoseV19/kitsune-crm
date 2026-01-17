@@ -67,7 +67,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
       db.setOrganizationId(organizationId);
       storage.setOrganizationId(organizationId);
     }
-  }, [organizationId]);
+  }, [organizationId, db, storage]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -75,10 +75,12 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         if (user) {
           const { data: profile } = await supabase
             .from('user_profiles')
-            .select('full_name')
+            .select('code_name, full_name')
             .eq('id', user.id)
             .single();
-          setCurrentUser(profile?.full_name || user.fullName || user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Usuario');
+          // Prefer code_name (Nombre en Clave) over full_name, then fall back to Clerk name
+          const displayName = profile?.code_name || profile?.full_name || user.fullName || user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Usuario';
+          setCurrentUser(displayName);
         }
       } catch (error) {
         console.error('Error getting user:', error);
@@ -97,7 +99,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   }, [isOpen, clientId]);
 
   const fetchOrgSettings = async () => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getOrganizationSettings();
       if (data) setOrgSettings(data as OrganizationSettings);
     } catch (error) {
@@ -106,7 +110,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   };
 
   const fetchClientData = async (id: string) => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const clientData = await db.getClientById(id);
       if (clientData) {
         setClient(clientData);
@@ -133,7 +139,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   };
 
   const fetchActivities = async (id: string) => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getActivities(id);
       setActivities(data);
     } catch (error) {
@@ -143,7 +151,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   };
 
   const fetchContacts = async (id: string) => {
+    if (!organizationId) return;
     try {
+      db.setOrganizationId(organizationId);
       const data = await db.getContacts(id);
       setContacts(data);
     } catch (error) {
@@ -181,9 +191,10 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
 
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId) return;
+    if (!clientId || !organizationId) return;
     setIsSubmitting(true);
     try {
+      db.setOrganizationId(organizationId);
       await db.createContact({
         client_id: clientId,
         name: newContact.name,
@@ -201,9 +212,10 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   };
 
   const handleSaveChanges = async () => {
-    if (!clientId) return;
+    if (!clientId || !organizationId) return;
     setIsSaving(true);
     try {
+      db.setOrganizationId(organizationId);
       await db.updateClient(clientId, editForm as any);
       setClient(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
@@ -215,11 +227,13 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNote.trim() || !clientId) return;
+    if (!newNote.trim() || !clientId || !organizationId) return;
     setIsSubmitting(true);
     try {
+      db.setOrganizationId(organizationId);
       await db.createActivity({
         client_id: clientId,
+        organization_id: organizationId,
         type: 'note',
         content: newNote,
         author_name: currentUser,
@@ -233,9 +247,10 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
   };
 
   const handleDelete = async () => {
-    if (!clientId) return;
+    if (!clientId || !organizationId) return;
     if (confirm("¿Estás seguro de eliminar este cliente y todos sus datos?")) {
       try {
+        db.setOrganizationId(organizationId);
         await db.deleteClient(clientId);
         onClientDeleted();
       } catch (error: any) {

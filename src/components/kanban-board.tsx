@@ -99,7 +99,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
       db.setOrganizationId(organizationId);
       storage.setOrganizationId(organizationId);
     }
-  }, [organizationId]);
+  }, [organizationId, db, storage]);
 
   const fetchDeals = useCallback(async () => {
     if (!organizationId) return;
@@ -258,6 +258,8 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
       setIsSaving(true);
       setNewDealError(null);
       try {
+        // Ensure organization ID is set before database operations
+        db.setOrganizationId(organizationId);
         await db.createDeal({
           title,
           organization_id: organizationId,
@@ -275,15 +277,21 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
         setIsSaving(false);
       }
     },
-    [fetchDeals, newDealStage, newDealTitle, organizationId],
+    [fetchDeals, newDealStage, newDealTitle, organizationId, db],
   );
 
   const saveTaskLocal = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
       if (!editingTask) return;
+      if (!organizationId) {
+        console.error('Organization ID is required');
+        return;
+      }
       setIsSaving(true);
       try {
+        // Ensure organization ID is set before database operations
+        db.setOrganizationId(organizationId);
         const {
           id,
           title,
@@ -309,13 +317,19 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
         setIsSaving(false);
       }
     },
-    [editingTask, fetchDeals],
+    [editingTask, fetchDeals, organizationId, db],
   );
 
   const handleDeleteDeal = useCallback(async () => {
     if (!editingTask) return;
+    if (!organizationId) {
+      console.error('Organization ID is required');
+      return;
+    }
     setIsSaving(true);
     try {
+      // Ensure organization ID is set before database operations
+      db.setOrganizationId(organizationId);
       await db.deleteDeal(editingTask.task.id);
       await fetchDeals();
       setEditingTask(null);
@@ -325,7 +339,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
     } finally {
       setIsSaving(false);
     }
-  }, [editingTask, fetchDeals]);
+  }, [editingTask, fetchDeals, organizationId, db]);
 
   const handleEditTask = useCallback((task: KanbanTask) => {
     setEditingTask({ task });
@@ -415,6 +429,10 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
 
       setIsSaving(true);
       try {
+        // Ensure organization ID is set before database operations
+        if (organizationId) {
+          db.setOrganizationId(organizationId);
+        }
         await db.updateDeal(taskId, { stage: targetStage });
         if (task.client_id && organizationId) {
           const oldStage = STAGE_CONFIG[sourceStage].title;

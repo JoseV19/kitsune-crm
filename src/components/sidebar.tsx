@@ -12,9 +12,9 @@ import {
   Settings,
   Users
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
-import { useUser, useClerk } from "@clerk/nextjs";
+import Image from "next/image";
+import { useUser, useClerk, UserAvatar } from "@clerk/nextjs";
 import { getActiveUserOrganizations } from "@/lib/services/organization.service";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import { UserOrganizationMembership } from "@/types/organization";
@@ -23,7 +23,7 @@ import { buildLastOrganizationCookie, buildTenantPath } from "@/lib/utils/url-he
 interface SidebarProps {
   currentView?: "home" | "kanban" | "dashboard"; 
   onChangeView?: (view: "home" | "kanban" | "dashboard") => void;
-  user: { name: string; role: string; avatar: string };
+  user: { name: string; role: string; avatar?: string };
   onNewClient: () => void;
   onProfileClick: () => void;
   onLogout: () => void;
@@ -202,13 +202,37 @@ export default function Sidebar({
       <div className="p-4 border-t border-slate-900 bg-slate-900/30">
         <div className="flex items-center gap-3 group cursor-pointer" onClick={onProfileClick}>
           <div className="relative">
-            <Image
-              src={propUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${propUser.name}`}
-              className="w-10 h-10 rounded-full border border-slate-600 group-hover:border-kiriko-teal transition-colors"
-              alt="Profile"
-              width={40}
-              height={40}
-            />
+            <div className="w-10 h-10 rounded-full border border-slate-600 group-hover:border-kiriko-teal transition-colors overflow-hidden">
+              <div className="w-full h-full rounded-full overflow-hidden relative">
+                {clerkUser?.imageUrl ? (
+                  <img
+                    src={clerkUser.imageUrl}
+                    alt="Profile"
+                    className="w-full h-full object-cover rounded-full"
+                    key={clerkUser.imageUrl}
+                  />
+                ) : (
+                  <UserAvatar
+                    rounded
+                    appearance={{
+                      elements: {
+                        avatarBox: {
+                          width: '100%',
+                          height: '100%',
+                          borderRadius: '50%',
+                        },
+                        avatarImage: {
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: '50%',
+                        },
+                      },
+                    }}
+                  />
+                )}
+              </div>
+            </div>
             <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-slate-900"></div>
           </div>
           <div className="flex-1 overflow-hidden">

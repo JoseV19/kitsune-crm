@@ -31,7 +31,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
     if (organizationId) {
       db.setOrganizationId(organizationId);
     }
-  }, [organizationId]);
+  }, [organizationId, db]);
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -55,6 +55,9 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
     if (!organizationId) return;
 
     try {
+      // Ensure organization ID is set before operations
+      db.setOrganizationId(organizationId);
+
       // Get won deals for revenue
       const allDeals = await db.getDeals();
       const wonDeals = allDeals.filter(d => d.stage === 'won');

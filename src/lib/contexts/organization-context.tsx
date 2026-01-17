@@ -124,7 +124,9 @@ export function OrganizationProvider({
     if (!initialOrganization && isLoaded) {
       refreshOrganization();
     }
-  }, [initialOrganization, isLoaded, user, slug]);
+    // Only depend on user ID, not the entire user object to avoid reloads on profile updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOrganization, isLoaded, user?.id, slug]);
 
   return (
     <OrganizationContext.Provider

@@ -241,11 +241,14 @@ export class DatabaseService {
     return data || [];
   }
 
-  async createContact(contact: Omit<Contact, 'id' | 'created_at'>): Promise<Contact> {
+  async createContact(contact: Omit<Contact, 'id' | 'created_at' | 'organization_id'>): Promise<Contact> {
     this.ensureOrganizationContext();
     const { data, error } = await this.supabase
       .from('contacts')
-      .insert(contact)
+      .insert({
+        ...contact,
+        organization_id: this.organizationId!,
+      })
       .select()
       .single();
 
@@ -297,12 +300,15 @@ export class DatabaseService {
     return data || [];
   }
 
-  async createDealItem(item: Omit<DealItem, 'id' | 'organization_id'>): Promise<DealItem> {
+  async createDealItem(item: Omit<DealItem, 'id' | 'organization_id' | 'total_price'>): Promise<DealItem> {
     this.ensureOrganizationContext();
     const { data, error } = await this.supabase
       .from('deal_items')
       .insert({
-        ...item,
+        deal_id: item.deal_id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
         organization_id: this.organizationId!,
       })
       .select('*, product:products(name)')
@@ -312,11 +318,13 @@ export class DatabaseService {
     return data;
   }
 
-  async updateDealItem(id: string, updates: Partial<DealItem>): Promise<DealItem> {
+  async updateDealItem(id: string, updates: Partial<Omit<DealItem, 'id' | 'organization_id' | 'total_price'>>): Promise<DealItem> {
     this.ensureOrganizationContext();
+    // Exclude total_price as it's a generated/computed column
+    const { total_price, ...updateFields } = updates as any;
     const { data, error } = await this.supabase
       .from('deal_items')
-      .update(updates)
+      .update(updateFields)
       .eq('id', id)
       .eq('organization_id', this.organizationId!)
       .select()

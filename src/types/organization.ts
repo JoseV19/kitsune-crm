@@ -14,6 +14,8 @@ export type OrganizationRole = 'owner' | 'admin' | 'member';
 export interface UserProfile {
   id: string; // References auth.users(id)
   full_name?: string | null;
+  code_name?: string | null; // Custom display name (Nombre en Clave)
+  display_role?: string | null; // Custom role label (Rango/Rol)
   avatar_url?: string | null;
   created_at: string;
   updated_at: string;

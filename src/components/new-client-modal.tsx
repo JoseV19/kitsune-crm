@@ -48,7 +48,7 @@ export default function NewClientModal({
       db.setOrganizationId(organizationId);
       storage.setOrganizationId(organizationId);
     }
-  }, [organizationId]);
+  }, [organizationId, db, storage]);
 
   useEffect(() => {
     if (isOpen) {
@@ -81,6 +81,10 @@ export default function NewClientModal({
       if (!organizationId) {
         throw new Error('No se ha configurado la organización');
       }
+
+      // Ensure organization ID is set before database operations
+      db.setOrganizationId(organizationId);
+      storage.setOrganizationId(organizationId);
 
       // Upload logo if provided
       if (logoFile) {

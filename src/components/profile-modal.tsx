@@ -1,12 +1,13 @@
 "use client";
 
-import { X, Save, Camera, Shield } from "lucide-react";
+import { X, Save, Shield, Camera, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { UserAvatar, useUser, useSession } from "@clerk/nextjs";
 
 interface UserData {
   name: string;
   role: string;
-  avatar: string;
+  avatar?: string;
 }
 
 interface ProfileModalProps {
@@ -22,31 +23,138 @@ export function ProfileModal({
   currentUser,
   onSave,
 }: ProfileModalProps) {
+  const { user, isLoaded } = useUser();
+  const { session } = useSession();
   const [name, setName] = useState(currentUser.name);
   const [role, setRole] = useState(currentUser.role);
-  const [avatar, setAvatar] = useState(currentUser.avatar);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
+  const [localImageUrl, setLocalImageUrl] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(currentUser.name);
       setRole(currentUser.role);
-      setAvatar(currentUser.avatar);
+      setUploadError(null);
+      setSaveError(null);
     }
   }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name, role, avatar });
-    onClose();
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const accessToken = await session?.getToken();
+      if (!accessToken) {
+        throw new Error('No se pudo obtener la sesión');
+      }
+
+      // Save to database via API
+      const response = await fetch('/api/users/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          code_name: name || null,
+          display_role: role || null,
+          full_name: name || null, // Also update full_name so it shows in activity logs
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al guardar el perfil');
+      }
+
+      // Update local state and call onSave callback
+      onSave({ name, role });
+      onClose();
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      setSaveError(error.message || 'Error al guardar el perfil');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Stop propagation to prevent form submission, but don't prevent default
+    // so the file input can work normally
+    e.stopPropagation();
+    
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setAvatar(url);
+    if (!file || !user) {
+      // Reset input value to allow selecting the same file again
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Por favor selecciona un archivo de imagen válido');
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('La imagen debe ser menor a 5MB');
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setUploadError(null);
+
+    try {
+      // Create a preview URL immediately for better UX
+      const previewUrl = URL.createObjectURL(file);
+      setLocalImageUrl(previewUrl);
+      
+      // Use setProfileImage with proper error handling
+      // Clerk will update the user object automatically
+      await user.setProfileImage({ file });
+      
+      // Wait a moment for Clerk to process the image
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Clear preview and use Clerk's updated URL
+      setLocalImageUrl(null);
+      URL.revokeObjectURL(previewUrl);
+      
+      // Force image refresh by updating the timestamp
+      setImageTimestamp(Date.now());
+      setIsUploadingImage(false);
+      
+      // Clear the input to allow selecting the same file again
+      e.target.value = '';
+    } catch (error: any) {
+      console.error('Error uploading profile image:', error);
+      
+      // Provide more specific error messages
+      if (error?.status === 413 || error?.message?.includes('size')) {
+        setUploadError('La imagen es demasiado grande. Por favor selecciona una imagen menor a 5MB.');
+      } else if (error?.status === 400 || error?.message?.includes('format')) {
+        setUploadError('Formato de imagen no válido. Por favor selecciona JPG, PNG o GIF.');
+      } else {
+        setUploadError('Error al subir la imagen. Por favor intenta de nuevo.');
+      }
+      
+      setIsUploadingImage(false);
+      if (localImageUrl) {
+        URL.revokeObjectURL(localImageUrl);
+        setLocalImageUrl(null);
+      }
+      e.target.value = '';
     }
   };
 
@@ -76,28 +184,83 @@ export function ProfileModal({
 
         <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
           <div className="flex flex-col items-center gap-3">
-            <div className="relative group cursor-pointer">
-              <div className="w-24 h-24 rounded-full border-2 border-kiriko-teal p-1 shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-                <img
-                  src={
-                    avatar ||
-                    "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
-                  }
-                  alt="Avatar"
-                  className="w-full h-full rounded-full object-cover bg-slate-800"
-                />
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full border-2 border-kiriko-teal p-1 shadow-[0_0_15px_rgba(45,212,191,0.3)] bg-slate-800 overflow-hidden">
+                {isUploadingImage ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Loader2 size={32} className="text-kiriko-teal animate-spin" />
+                  </div>
+                ) : (
+                  <div className="w-full h-full rounded-full overflow-hidden relative">
+                    {localImageUrl ? (
+                      <img
+                        key={`preview-${imageTimestamp}`}
+                        src={localImageUrl}
+                        alt="Profile"
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : user?.imageUrl ? (
+                      <img
+                        key={`${user.imageUrl}-${imageTimestamp}`}
+                        src={`${user.imageUrl}?t=${imageTimestamp}`}
+                        alt="Profile"
+                        className="w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          // Fallback to UserAvatar if image fails to load
+                          console.warn('Failed to load profile image, using fallback');
+                        }}
+                      />
+                    ) : (
+                      <UserAvatar
+                        rounded
+                        appearance={{
+                          elements: {
+                            avatarBox: {
+                              width: '100%',
+                              height: '100%',
+                              borderRadius: '50%',
+                            },
+                            avatarImage: {
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              borderRadius: '50%',
+                            },
+                          },
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
-              <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
-                <Camera size={24} />
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                />
-              </label>
+              {isLoaded && user && !isUploadingImage && (
+                <label 
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  onClick={(e) => {
+                    // Only stop propagation to prevent form submission, but allow file input to work
+                    e.stopPropagation();
+                  }}
+                >
+                  <Camera size={24} className="text-white pointer-events-none" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    disabled={isUploadingImage}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  />
+                </label>
+              )}
             </div>
-            <p className="text-xs text-slate-500">Click para cambiar foto</p>
+            <div className="text-center">
+              <p className="text-xs text-slate-500">Hover sobre la foto para cambiarla</p>
+              {uploadError && (
+                <p className="text-xs text-red-400 mt-1">{uploadError}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -132,12 +295,28 @@ export function ProfileModal({
             </div>
           </div>
 
+          {saveError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-sm text-red-400 text-sm">
+              {saveError}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-teal-500 hover:bg-teal-400 text-black font-bold py-3 mt-2 rounded-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:shadow-[0_0_25px_rgba(45,212,191,0.6)]"
+            disabled={isSaving}
+            className="w-full bg-teal-500 hover:bg-teal-400 text-black font-bold py-3 mt-2 rounded-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:shadow-[0_0_25px_rgba(45,212,191,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={18} />
-            ACTUALIZAR CREDENCIALES
+            {isSaving ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                GUARDANDO...
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                ACTUALIZAR CREDENCIALES
+              </>
+            )}
           </button>
         </form>
       </div>

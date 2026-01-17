@@ -33,6 +33,7 @@ export interface Contact {
   id: string;
   client_id: string; 
   created_at: string;
+  organization_id: string; // Multi-tenancy
   name: string;       
   role?: string | null; 
   email?: string | null;
