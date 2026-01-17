@@ -41,6 +41,7 @@ export default function SignUpPage() {
     try {
       const supabase = createClient();
 
+      // Sign up the user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -48,7 +49,6 @@ export default function SignUpPage() {
           data: {
             full_name: data.name,
           },
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
         },
       });
 
@@ -60,11 +60,20 @@ export default function SignUpPage() {
         throw new Error('Error al crear la cuenta');
       }
 
-      // Redirect to confirmation page or show success message
-      router.push('/auth/confirm?email=' + encodeURIComponent(data.email));
+      // Automatically sign in the user after sign-up
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (signInError) {
+        throw new Error(signInError.message || 'Error al iniciar sesión automáticamente');
+      }
+
+      // Redirect to dashboard
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Error al crear la cuenta');
-    } finally {
       setLoading(false);
     }
   };

@@ -69,15 +69,15 @@ body {
 }
 
 /* Ocultamos el cursor por defecto en toda la app */
-body {
+/* body {
   cursor: none; 
-}
+} */
 
 /* Opcional: Aseguramos que los botones tampoco muestren la mano, 
    ya que nuestro Kunai reaccionará visualmente */
-button, a, .cursor-pointer {
+/* button, a, .cursor-pointer {
   cursor: none;
-}
+} */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
