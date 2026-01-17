@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/services/supabase/client';
+import { useUser } from '@clerk/nextjs';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import OrganizationSelector from '@/components/organization-selector';
 import { UserOrganizationMembership } from '@/types/organization';
@@ -10,17 +10,19 @@ import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 
 export default function SelectOrganizationPage() {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
   const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadOrganizations = async () => {
+      if (!isLoaded) return;
+
       try {
         setLoading(true);
         setError(null);
 
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           router.push('/');
           return;
@@ -47,7 +49,7 @@ export default function SelectOrganizationPage() {
     };
 
     loadOrganizations();
-  }, [router]);
+  }, [router, user, isLoaded]);
 
   const handleSelectOrganization = (membership: UserOrganizationMembership) => {
     const slug = membership.organization?.slug;

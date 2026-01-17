@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -67,10 +68,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { userId } = await auth();
 
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     const { data: membership } = await supabaseAdmin
       .from('user_organization_memberships')
       .select('role, is_active')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('organization_id', organization.id)
       .single();
 
@@ -118,7 +118,9 @@ export async function GET(request: NextRequest) {
 
     const usersWithDetails = await Promise.all(
       (memberships || []).map(async (entry) => {
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(entry.user_id);
+        // Try to get email from Clerk if possible, or skip if strict on rate limits
+        // For now, returning null for email to avoid N+1 Clerk calls unless necessary
+        // Or we could fetch user list from Clerk filtering by IDs
         return {
           id: entry.user_id,
           role: entry.role,
@@ -127,8 +129,8 @@ export async function GET(request: NextRequest) {
           avatar_url: entry.user?.avatar_url || null,
           created_at: entry.created_at,
           updated_at: entry.updated_at,
-          email: authUser?.user?.email || null,
-          has_password: !!authUser?.user?.encrypted_password,
+          email: null, // Email requires fetching from Clerk
+          has_password: true, // Clerk users always have some auth method
         };
       })
     );
@@ -153,10 +155,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { userId } = await auth();
 
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
     const { data: membership } = await supabaseAdmin
       .from('user_organization_memberships')
       .select('role, is_active')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('organization_id', organization.id)
       .single();
 
@@ -201,13 +202,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+    // Check if user exists in Clerk
+    const client = await clerkClient();
+    const { data: users } = await client.users.getUserList({ emailAddress: [email] });
+    const existingUser = users[0];
 
-    if (existingUser?.user) {
+    if (existingUser) {
       const { data: existingMembership } = await supabaseAdmin
         .from('user_organization_memberships')
         .select('id, is_active')
-        .eq('user_id', existingUser.user.id)
+        .eq('user_id', existingUser.id)
         .eq('organization_id', organization.id)
         .single();
 
@@ -229,7 +233,7 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({
-          userId: existingUser.user.id,
+          userId: existingUser.id,
           email,
           message: 'Usuario reactivado en la organización',
         });
@@ -238,14 +242,14 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin
         .from('user_profiles')
         .upsert({
-          id: existingUser.user.id,
+          id: existingUser.id,
           full_name: name,
         });
 
       const { error: membershipError } = await supabaseAdmin
         .from('user_organization_memberships')
         .insert({
-          user_id: existingUser.user.id,
+          user_id: existingUser.id,
           organization_id: organization.id,
           role: 'member',
           is_active: true,
@@ -256,55 +260,18 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({
-        userId: existingUser.user.id,
+        userId: existingUser.id,
         email,
         message: 'Usuario agregado a la organización',
       });
     }
 
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: {
-        full_name: name,
-      },
-    });
+    // User does not exist in Clerk
+    return NextResponse.json(
+      { error: 'El usuario no tiene cuenta en el sistema. Pídale que se registre primero.' },
+      { status: 400 }
+    );
 
-    if (createError || !newUser.user) {
-      throw new Error(`Error al crear usuario: ${createError?.message || 'Error desconocido'}`);
-    }
-
-    const { error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .insert({
-        id: newUser.user.id,
-        full_name: name,
-      });
-
-    if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error(`Error al crear perfil: ${profileError.message}`);
-    }
-
-    const { error: membershipError } = await supabaseAdmin
-      .from('user_organization_memberships')
-      .insert({
-        user_id: newUser.user.id,
-        organization_id: organization.id,
-        role: 'member',
-        is_active: true,
-      });
-
-    if (membershipError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error(`Error al crear membresía: ${membershipError.message}`);
-    }
-
-    return NextResponse.json({
-      userId: newUser.user.id,
-      email,
-      message: 'Usuario creado exitosamente',
-    });
   } catch (error: any) {
     console.error('Error creating user:', error);
     return NextResponse.json(

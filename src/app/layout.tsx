@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-import { CustomCursor } from "@/components/custom-cursor"; 
+import { CustomCursor } from "@/components/custom-cursor";
 import { SakuraBackground } from "@/components/sakura-background";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -19,16 +20,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className={`${inter.className} bg-black`}>
-        {/* <CustomCursor /> */}
-        
-        <SakuraBackground />
-        
+    <ClerkProvider>
+      <html lang="es">
+        <body className={`${inter.className} bg-black`}>
+          {/* <CustomCursor /> */}
+
+          <SakuraBackground />
+
           <div className="relative z-10">
-              {children}
+            {children}
           </div>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

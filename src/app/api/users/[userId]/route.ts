@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { auth } from '@clerk/nextjs/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-// Create regular client for auth verification
+// Create regular client for auth verification (not used with Clerk auth, but keeping for reference if needed)
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Admin client for membership updates
@@ -72,10 +73,9 @@ export async function DELETE(
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { userId: currentUserId } = await auth();
 
-    if (authError || !user) {
+    if (!currentUserId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -93,7 +93,7 @@ export async function DELETE(
     const { data: requesterMembership } = await supabaseAdmin
       .from('user_organization_memberships')
       .select('role, is_active')
-      .eq('user_id', user.id)
+      .eq('user_id', currentUserId)
       .eq('organization_id', organization.id)
       .single();
 

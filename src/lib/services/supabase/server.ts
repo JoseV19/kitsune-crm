@@ -1,8 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { auth } from '@clerk/nextjs/server'
 
 export async function createClient() {
   const cookieStore = await cookies()
+  const { getToken } = await auth()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +23,9 @@ export async function createClient() {
             // user sessions.
           }
         },
+      },
+      accessToken: async () => {
+        return await getToken() ?? null
       },
     }
   )

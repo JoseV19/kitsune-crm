@@ -1,8 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { Organization } from '@/types/organization';
-import { supabase } from '@/lib/services/supabase/client';
+import { useSupabaseClient } from '@/lib/services/supabase/client';
 
 interface OrganizationContextType {
   organization: Organization | null;
@@ -23,16 +24,18 @@ export function OrganizationProvider({
   children: ReactNode;
   initialOrganization?: Organization | null;
 }) {
+  const { user, isLoaded } = useUser();
+  const supabase = useSupabaseClient();
   const [organization, setOrganization] = useState<Organization | null>(initialOrganization || null);
   const [isLoading, setIsLoading] = useState(!initialOrganization);
   const [error, setError] = useState<string | null>(null);
 
   const refreshOrganization = async () => {
+    if (!isLoaded) return;
+
     try {
       setIsLoading(true);
       setError(null);
-
-      const { data: { user } } = await supabase.auth.getUser();
 
       const hostname = window.location.hostname;
       const subdomain = hostname.split('.')[0];
@@ -86,7 +89,6 @@ export function OrganizationProvider({
   };
 
   const getUserOrganizations = async (): Promise<Organization[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return [];
     }
@@ -105,6 +107,39 @@ export function OrganizationProvider({
       .map((entry) => entry.organization)
       .filter((org): org is Organization => !!org);
   };
+
+  const switchOrganization = (slug: string) => {
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    const isLocalhost = host.includes('localhost');
+    const baseUrl = isLocalhost
+      ? `${protocol}//${slug}.${host}`
+      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
+    window.location.href = baseUrl;
+  };
+
+  useEffect(() => {
+    if (!initialOrganization && isLoaded) {
+      refreshOrganization();
+    }
+  }, [initialOrganization, isLoaded, user]); // Added dependencies
+
+  return (
+    <OrganizationContext.Provider
+      value={{
+        organization,
+        organizationId: organization?.id || null,
+        isLoading,
+        error,
+        refreshOrganization,
+        getUserOrganizations,
+        switchOrganization,
+      }}
+    >
+      {children}
+    </OrganizationContext.Provider>
+  );
+}
 
   const switchOrganization = (slug: string) => {
     const protocol = window.location.protocol;

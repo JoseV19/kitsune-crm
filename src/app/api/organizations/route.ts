@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { createOrganizationSchema } from '@/lib/validations/organization.schema';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -15,19 +16,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get auth token from request
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    // Get auth token from request (Clerk)
+    const { userId } = await auth();
+    const user = await currentUser();
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
+    if (!userId || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -91,9 +84,9 @@ export async function POST(request: NextRequest) {
     const { error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .upsert({
-        id: user.id,
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
+        id: userId,
+        full_name: user.fullName || user.firstName || 'Usuario',
+        avatar_url: user.imageUrl || null,
       });
 
     if (profileError) {
@@ -105,7 +98,7 @@ export async function POST(request: NextRequest) {
     const { error: membershipError } = await supabaseAdmin
       .from('user_organization_memberships')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         organization_id: organization.id,
         role: 'owner',
         is_active: true,

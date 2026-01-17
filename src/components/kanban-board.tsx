@@ -21,7 +21,7 @@ import {
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 import { db } from '@/lib/services/supabase/database.service';
 import { storage } from '@/lib/services/supabase/storage.service';
-import { supabase } from '@/lib/services/supabase/client'; // Still needed for complex queries
+import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for complex queries
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,13 +56,13 @@ import { CardBody } from './kanban/card-body';
 import type { KanbanTask, Column, Attachment } from './kanban/types';
 
 const STAGE_CONFIG: Record<DealStage, { title: string; color: string }> = {
-  prospect:     { title: 'PROSPECTOS', color: 'bg-emerald-400' },
-  qualified:    { title: 'CALIFICADOS', color: 'bg-teal-400' },
-  contacted:    { title: 'CONTACTADOS', color: 'bg-cyan-400' },
-  meeting:      { title: 'REUNIÓN / DEMO', color: 'bg-blue-400' },
-  negotiation:  { title: 'NEGOCIACIÓN', color: 'bg-violet-400' },
-  won:          { title: 'GANADOS 💰', color: 'bg-green-500' },
-  lost:         { title: 'PERDIDOS', color: 'bg-red-500' }
+  prospect: { title: 'PROSPECTOS', color: 'bg-emerald-400' },
+  qualified: { title: 'CALIFICADOS', color: 'bg-teal-400' },
+  contacted: { title: 'CONTACTADOS', color: 'bg-cyan-400' },
+  meeting: { title: 'REUNIÓN / DEMO', color: 'bg-blue-400' },
+  negotiation: { title: 'NEGOCIACIÓN', color: 'bg-violet-400' },
+  won: { title: 'GANADOS 💰', color: 'bg-green-500' },
+  lost: { title: 'PERDIDOS', color: 'bg-red-500' }
 };
 
 const STAGE_ORDER: DealStage[] = ['prospect', 'qualified', 'meeting', 'negotiation', 'won'];
@@ -76,6 +76,7 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = '' }: KanbanBoardProps) {
   const organizationId = useOrganizationId();
+  const supabase = useSupabaseClient();
   const [columns, setColumns] = useState<Column[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -120,11 +121,11 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
       return;
     }
 
-    const newColumns: Column[] = STAGE_ORDER.map(stage => ({ 
-        id: stage, 
-        title: STAGE_CONFIG[stage].title, 
-        color: STAGE_CONFIG[stage].color, 
-        tasks: [] 
+    const newColumns: Column[] = STAGE_ORDER.map(stage => ({
+      id: stage,
+      title: STAGE_CONFIG[stage].title,
+      color: STAGE_CONFIG[stage].color,
+      tasks: []
     }));
 
     const deals = Array.isArray(data) ? data : [];
@@ -444,7 +445,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
   return (
     <>
       <div className="fixed bottom-4 right-4 z-50">
-          {isSaving && <div className="flex items-center gap-2 bg-slate-900 border border-kiriko-teal/30 px-3 py-1 rounded-full text-[10px] text-kiriko-teal animate-pulse"><Loader2 size={10} className="animate-spin" /> Guardando...</div>}
+        {isSaving && <div className="flex items-center gap-2 bg-slate-900 border border-kiriko-teal/30 px-3 py-1 rounded-full text-[10px] text-kiriko-teal animate-pulse"><Loader2 size={10} className="animate-spin" /> Guardando...</div>}
       </div>
 
       <DndContext

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { supabase } from '@/lib/services/supabase/client';
+import { useUser, useSession } from '@clerk/nextjs';
 import { useOrganization } from '@/lib/contexts/organization-context';
 import { useIsOrgOwner } from '@/lib/hooks/use-is-org-owner';
 import { createUserSchema, type CreateUserFormData } from '@/lib/validations/user-management.schema';
@@ -13,6 +13,8 @@ import { Loader2, UserPlus, Mail, User, Shield, Trash2, X, Plus } from 'lucide-r
 
 export default function UsersPage() {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
+  const { session } = useSession();
   const { organizationId } = useOrganization();
   const isOwner = useIsOrgOwner();
   const [users, setUsers] = useState<OrganizationUser[]>([]);
@@ -31,18 +33,21 @@ export default function UsersPage() {
   });
 
   useEffect(() => {
-    if (organizationId) {
+    if (organizationId && user && session) {
       loadUsers();
     }
-  }, [organizationId]);
+  }, [organizationId, user, session]);
 
   const loadUsers = async () => {
-    if (!organizationId) return;
+    if (!organizationId || !session) return;
 
     try {
       setLoading(true);
       setError(null);
-      const organizationUsers = await getOrganizationUsers();
+      const token = await session.getToken();
+      if (!token) throw new Error('No token');
+      
+      const organizationUsers = await getOrganizationUsers(token);
       setUsers(organizationUsers);
     } catch (err: any) {
       setError(err.message || 'Error al cargar usuarios');
@@ -52,17 +57,20 @@ export default function UsersPage() {
   };
 
   const onCreateUser = async (data: CreateUserFormData) => {
-    if (!organizationId) {
-      setError('No se pudo identificar la organización');
+    if (!organizationId || !session) {
+      setError('No se pudo identificar la organización o sesión');
       return;
     }
 
     try {
       setError(null);
+      const token = await session.getToken();
+      if (!token) throw new Error('No token');
+
       await createUser({
         name: data.name,
         email: data.email,
-      });
+      }, token);
       
       reset();
       setIsCreateModalOpen(false);
@@ -73,7 +81,7 @@ export default function UsersPage() {
   };
 
   const onDeleteUser = async (userId: string) => {
-    if (!organizationId) return;
+    if (!organizationId || !session) return;
 
     if (!confirm('¿Estás seguro de que deseas eliminar este usuario de la organización?')) {
       return;
@@ -82,7 +90,10 @@ export default function UsersPage() {
     try {
       setDeletingUserId(userId);
       setError(null);
-      await removeUserFromOrganization(userId);
+      const token = await session.getToken();
+      if (!token) throw new Error('No token');
+
+      await removeUserFromOrganization(userId, token);
       await loadUsers();
     } catch (err: any) {
       setError(err.message || 'Error al eliminar usuario');

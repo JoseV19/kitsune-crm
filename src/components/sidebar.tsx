@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "@/lib/services/supabase/client";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { getActiveUserOrganizations } from "@/lib/services/organization.service";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import { UserOrganizationMembership } from "@/types/organization";
@@ -30,28 +30,30 @@ interface SidebarProps {
 export default function Sidebar({
   currentView,
   onChangeView,
-  user,
+  user: propUser, // Rename to avoid conflict with useUser
   onNewClient,
   onProfileClick,
   onLogout,
 }: SidebarProps) {
+  const { user: clerkUser } = useUser();
   const { organization } = useOrganization();
   const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   useEffect(() => {
     const loadOrganizations = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
+      if (!clerkUser) {
         return;
       }
 
-      const activeMemberships = await getActiveUserOrganizations(authUser.id);
+      const activeMemberships = await getActiveUserOrganizations(clerkUser.id);
       setMemberships(activeMemberships);
     };
 
-    loadOrganizations();
-  }, []);
+    if (clerkUser) {
+      loadOrganizations();
+    }
+  }, [clerkUser]);
 
   const handleSwitchOrganization = (slug?: string) => {
     if (!slug) {
@@ -174,7 +176,7 @@ export default function Sidebar({
         </Link>
 
         {/* USUARIOS - Solo para propietarios */}
-        {user.role === 'Propietario' && (
+        {propUser.role === 'Propietario' && (
           <Link 
             href="/users" 
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group text-slate-400 hover:bg-white/5 hover:text-white"
@@ -200,7 +202,7 @@ export default function Sidebar({
         <div className="flex items-center gap-3 group cursor-pointer" onClick={onProfileClick}>
           <div className="relative">
             <Image
-              src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
+              src={propUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${propUser.name}`}
               className="w-10 h-10 rounded-full border border-slate-600 group-hover:border-kiriko-teal transition-colors"
               alt="Profile"
               width={40}
@@ -209,8 +211,8 @@ export default function Sidebar({
             <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-slate-900"></div>
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-bold text-white truncate group-hover:text-kiriko-teal transition-colors">{user.name}</p>
-            <p className="text-[10px] text-slate-500 truncate">{user.role}</p>
+            <p className="text-sm font-bold text-white truncate group-hover:text-kiriko-teal transition-colors">{propUser.name}</p>
+            <p className="text-[10px] text-slate-500 truncate">{propUser.role}</p>
           </div>
           <button onClick={(e) => { e.stopPropagation(); onLogout(); }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
             <LogOut size={16} />

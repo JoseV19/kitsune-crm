@@ -1,4 +1,3 @@
-import { supabase } from './supabase/client';
 import { UserProfile } from '@/types/organization';
 
 export interface CreateUserData {
@@ -13,23 +12,10 @@ export interface OrganizationUser extends UserProfile {
 }
 
 /**
- * Get auth token for API requests
- */
-async function getAuthToken(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('No autenticado');
-  }
-  return session.access_token;
-}
-
-/**
  * Create a new user in the organization
  * Creates auth user without password and user_profile with role 'member'
  */
-export async function createUser(data: CreateUserData): Promise<{ userId: string; email: string }> {
-  const token = await getAuthToken();
-
+export async function createUser(data: CreateUserData, token: string): Promise<{ userId: string; email: string }> {
   const response = await fetch('/api/users', {
     method: 'POST',
     headers: {
@@ -54,9 +40,7 @@ export async function createUser(data: CreateUserData): Promise<{ userId: string
 /**
  * Get all users in an organization
  */
-export async function getOrganizationUsers(): Promise<OrganizationUser[]> {
-  const token = await getAuthToken();
-
+export async function getOrganizationUsers(token: string): Promise<OrganizationUser[]> {
   const response = await fetch('/api/users', {
     method: 'GET',
     headers: {
@@ -77,9 +61,7 @@ export async function getOrganizationUsers(): Promise<OrganizationUser[]> {
  * Remove a user from an organization
  * This deletes the user_profile, not the auth user
  */
-export async function removeUserFromOrganization(userId: string): Promise<void> {
-  const token = await getAuthToken();
-
+export async function removeUserFromOrganization(userId: string, token: string): Promise<void> {
   const response = await fetch(`/api/users/${userId}`, {
     method: 'DELETE',
     headers: {
@@ -91,51 +73,4 @@ export async function removeUserFromOrganization(userId: string): Promise<void> 
     const error = await response.json();
     throw new Error(error.error || 'Error al eliminar usuario');
   }
-}
-
-/**
- * Get current user's role in their organization
- */
-export async function getCurrentUserRole(): Promise<'owner' | 'admin' | 'member' | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return null;
-  }
-
-  const host = window.location.host;
-  const isLocalhost = host.includes('localhost');
-  const parts = host.split('.');
-  const subdomain = parts[0];
-
-  if (isLocalhost && parts.length < 2) {
-    return null;
-  }
-
-  if (!subdomain || subdomain === 'www' || subdomain === 'localhost') {
-    return null;
-  }
-
-  const { data: organization } = await supabase
-    .from('organizations')
-    .select('id')
-    .eq('slug', subdomain)
-    .single();
-
-  if (!organization) {
-    return null;
-  }
-
-  const { data: membership } = await supabase
-    .from('user_organization_memberships')
-    .select('role, is_active')
-    .eq('user_id', user.id)
-    .eq('organization_id', organization.id)
-    .single();
-
-  if (!membership?.is_active) {
-    return null;
-  }
-
-  return membership.role as 'owner' | 'admin' | 'member';
 }

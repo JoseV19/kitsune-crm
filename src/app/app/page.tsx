@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { useOrganization } from "@/lib/contexts/organization-context";
-import { createClient } from "@/lib/services/supabase/client";
+import { useSupabaseClient } from "@/lib/services/supabase/client";
 import Sidebar from "@/components/sidebar";
 import KanbanBoard from "@/components/kanban-board";
 import ClientDetailsPanel from "@/components/client-details-panel";
@@ -21,6 +22,8 @@ interface UserData {
 
 export default function AppPage() {
   const router = useRouter();
+  const { user: clerkUser, isLoaded: isAuthLoaded, isSignedIn } = useUser();
+  const { signOut } = useClerk();
   const { organization, isLoading: orgLoading } = useOrganization();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +34,6 @@ export default function AppPage() {
     avatar: "",
   });
 
-  
   const [currentView, setCurrentView] = useState<"home" | "kanban" | "dashboard">("home"); 
   
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
@@ -41,42 +43,45 @@ export default function AppPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const supabase = createClient();
+  const supabase = useSupabaseClient();
 
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (user && !error) {
-          setIsAuthenticated(true);
-          setUserId(user.id);
-          
-          // Load user data from localStorage or set defaults
-          const savedUser = localStorage.getItem("kitsune_user");
-          if (savedUser) {
-            try {
-              setUser(JSON.parse(savedUser));
-            } catch (e) {
-              // Invalid JSON, use defaults
-            }
+      if (!isAuthLoaded) return;
+
+      if (isSignedIn && clerkUser) {
+        setIsAuthenticated(true);
+        setUserId(clerkUser.id);
+        
+        // Update user state from Clerk data
+        setUser(prev => ({
+          ...prev,
+          name: clerkUser.fullName || clerkUser.firstName || "Usuario",
+          avatar: clerkUser.imageUrl || prev.avatar,
+        }));
+
+        // Load additional user data from localStorage if needed, or stick to Clerk
+        const savedUser = localStorage.getItem("kitsune_user");
+        if (savedUser) {
+          try {
+            const parsed = JSON.parse(savedUser);
+            // Optional: merge with Clerk data or just use Clerk for consistency
+          } catch (e) {
+            // Invalid JSON, use defaults
           }
-        } else {
-          setIsAuthenticated(false);
-          router.push('/');
         }
-      } catch (error) {
-        console.error('Auth check failed:', error);
+      } else {
         setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
+        router.push('/');
       }
+      setIsLoading(false);
     };
 
     checkAuth();
-  }, [router, supabase]);
+  }, [isAuthLoaded, isSignedIn, clerkUser, router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     setIsAuthenticated(false);
     router.push('/');
   };

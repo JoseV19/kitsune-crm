@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { clerkClient } from '@clerk/nextjs/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -23,23 +24,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user by email using admin API
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+    // Get user by email using Clerk
+    const client = await clerkClient();
+    const { data: users } = await client.users.getUserList({ emailAddress: [email] });
+    const user = users[0];
 
-    if (userError || !userData?.user) {
+    if (!user) {
       return NextResponse.json(
         { exists: false, needsPassword: false },
         { status: 200 }
       );
     }
 
-    const user = userData.user;
-
-    // Check if user has a password set
-    // Users without passwords won't have encrypted_password
-    const hasPassword = !!user.encrypted_password;
-
-    // Check if user has at least one organization membership
+    // Check if user has at least one organization membership in Supabase
+    // We use the Clerk user ID as the user_id in our DB
     const { data: memberships } = await supabaseAdmin
       .from('user_organization_memberships')
       .select('id')
@@ -48,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       exists: true,
-      needsPassword: !hasPassword,
+      needsPassword: false, // Clerk handles authentication methods
       hasProfile: (memberships || []).length > 0,
       userId: user.id,
     });

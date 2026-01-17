@@ -1,19 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/services/supabase/client';
+import { useUser } from '@clerk/nextjs';
+import { useSupabaseClient } from '@/lib/services/supabase/client';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 
 export function useIsOrgOwner(): boolean {
   const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoaded } = useUser();
+  const supabase = useSupabaseClient();
   const organizationId = useOrganizationId();
 
   useEffect(() => {
     async function checkRole() {
+      if (!isLoaded) return;
+
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
         if (!user) {
           setIsOwner(false);
           setIsLoading(false);
@@ -43,7 +46,7 @@ export function useIsOrgOwner(): boolean {
     }
 
     checkRole();
-  }, [organizationId]);
+  }, [organizationId, user, isLoaded]); // Added user and isLoaded
 
   return isOwner;
 }
