@@ -1,6 +1,8 @@
-import { supabase } from './supabase/client';
+"use server";
+
 import { Organization, UserOrganizationMembership } from '@/types/organization';
 import { generateSlug, isValidSlug } from '@/lib/utils/slug-generator';
+import { createClient } from './supabase/server';
 
 export interface CreateOrganizationData {
   name: string;
@@ -21,6 +23,8 @@ export interface UpdateOrganizationData {
  * Check if a slug is available (not taken by another organization)
  */
 export async function checkSlugAvailability(slug: string): Promise<boolean> {
+  const supabase = await createClient();
+
   if (!isValidSlug(slug)) {
     return false;
   }
@@ -47,6 +51,8 @@ export async function createOrganization(
   data: CreateOrganizationData,
   userId: string
 ): Promise<Organization> {
+  const supabase = await createClient();
+
   const slug = data.slug || generateSlug(data.name);
   
   // Ensure slug is available
@@ -102,6 +108,8 @@ export async function createOrganization(
 }
 
 export async function getUserOrganizations(userId: string): Promise<UserOrganizationMembership[]> {
+  const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('user_organization_memberships')
     .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
@@ -112,10 +120,28 @@ export async function getUserOrganizations(userId: string): Promise<UserOrganiza
     throw new Error(`Error al obtener organizaciones: ${error.message}`);
   }
 
-  return data || [];
+  if (!data) {
+    return [];
+  }
+
+  // Transform data to ensure type safety - organization should be a single object, not an array
+  return data.map((membership: any) => ({
+    id: membership.id,
+    user_id: membership.user_id,
+    organization_id: membership.organization_id,
+    role: membership.role,
+    is_active: membership.is_active,
+    created_at: membership.created_at,
+    updated_at: membership.updated_at,
+    organization: Array.isArray(membership.organization) 
+      ? (membership.organization[0] as Organization | null)
+      : (membership.organization as Organization | null),
+  }));
 }
 
 export async function getActiveUserOrganizations(userId: string): Promise<UserOrganizationMembership[]> {
+  const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('user_organization_memberships')
     .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
@@ -127,13 +153,31 @@ export async function getActiveUserOrganizations(userId: string): Promise<UserOr
     throw new Error(`Error al obtener organizaciones activas: ${error.message}`);
   }
 
-  return data || [];
+  if (!data) {
+    return [];
+  }
+
+  // Transform data to ensure type safety - organization should be a single object, not an array
+  return data.map((membership: any) => ({
+    id: membership.id,
+    user_id: membership.user_id,
+    organization_id: membership.organization_id,
+    role: membership.role,
+    is_active: membership.is_active,
+    created_at: membership.created_at,
+    updated_at: membership.updated_at,
+    organization: Array.isArray(membership.organization) 
+      ? (membership.organization[0] as Organization | null)
+      : (membership.organization as Organization | null),
+  }));
 }
 
 export async function switchUserOrganization(
   userId: string,
   organizationId: string
 ): Promise<UserOrganizationMembership | null> {
+  const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('user_organization_memberships')
     .select('id, user_id, organization_id, role, is_active, created_at, updated_at, organization:organizations(*)')
@@ -141,11 +185,23 @@ export async function switchUserOrganization(
     .eq('organization_id', organizationId)
     .single();
 
-  if (error) {
+  if (error || !data) {
     return null;
   }
 
-  return data;
+  // Transform data to ensure type safety - organization should be a single object, not an array
+  return {
+    id: data.id,
+    user_id: data.user_id,
+    organization_id: data.organization_id,
+    role: data.role,
+    is_active: data.is_active,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    organization: Array.isArray(data.organization) 
+      ? (data.organization[0] as Organization | null)
+      : (data.organization as Organization | null),
+  };
 }
 
 export async function updateMembershipStatus(
@@ -153,6 +209,8 @@ export async function updateMembershipStatus(
   organizationId: string,
   isActive: boolean
 ): Promise<void> {
+  const supabase = await createClient();
+
   const { error } = await supabase
     .from('user_organization_memberships')
     .update({ is_active: isActive, updated_at: new Date().toISOString() })
@@ -168,6 +226,8 @@ export async function updateMembershipStatus(
  * Get organization by slug
  */
 export async function getOrganizationBySlug(slug: string): Promise<Organization | null> {
+  const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('organizations')
     .select('*')
@@ -185,6 +245,8 @@ export async function getOrganizationBySlug(slug: string): Promise<Organization 
  * Get organization by ID
  */
 export async function getOrganizationById(id: string): Promise<Organization | null> {
+  const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('organizations')
     .select('*')
@@ -212,6 +274,8 @@ export async function updateOrganization(
       throw new Error('El slug ya está en uso. Por favor, elige otro.');
     }
   }
+
+  const supabase = await createClient();
 
   const { data: organization, error } = await supabase
     .from('organizations')
