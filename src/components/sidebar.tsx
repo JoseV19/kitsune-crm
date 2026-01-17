@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -17,6 +18,7 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import { getActiveUserOrganizations } from "@/lib/services/organization.service";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import { UserOrganizationMembership } from "@/types/organization";
+import { buildLastOrganizationCookie, buildTenantPath } from "@/lib/utils/url-helper";
 
 interface SidebarProps {
   currentView?: "home" | "kanban" | "dashboard"; 
@@ -35,6 +37,7 @@ export default function Sidebar({
   onProfileClick,
   onLogout,
 }: SidebarProps) {
+  const router = useRouter();
   const { user: clerkUser } = useUser();
   const { organization } = useOrganization();
   const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
@@ -62,11 +65,9 @@ export default function Sidebar({
 
     const protocol = window.location.protocol;
     const host = window.location.host;
-    const isLocalhost = host.includes('localhost');
-    const baseUrl = isLocalhost
-      ? `${protocol}//${slug}.${host}`
-      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
-    window.location.href = baseUrl;
+    void protocol;
+    document.cookie = buildLastOrganizationCookie(slug, host);
+    router.push(buildTenantPath(slug, '/dashboard'));
   };
 
   const menuItems = [

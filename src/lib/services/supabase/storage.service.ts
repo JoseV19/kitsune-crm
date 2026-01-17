@@ -1,4 +1,6 @@
-import { supabase } from './client';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { useMemo } from 'react';
+import { useSupabaseClient } from '@/lib/services/supabase/client';
 
 /**
  * Storage service with organization context
@@ -6,6 +8,11 @@ import { supabase } from './client';
  */
 export class StorageService {
   private organizationId: string | null = null;
+  private supabase: SupabaseClient;
+
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase;
+  }
 
   /**
    * Set the organization context for all operations
@@ -31,13 +38,13 @@ export class StorageService {
     const fileExt = file.name.split('.').pop();
     const fileName = `${this.organizationId}/logo.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from('organization-logos')
       .upload(fileName, file, { upsert: true });
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = this.supabase.storage
       .from('organization-logos')
       .getPublicUrl(fileName);
 
@@ -52,13 +59,13 @@ export class StorageService {
     const fileExt = file.name.split('.').pop();
     const fileName = `${this.organizationId}/clients/${clientId}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from('logos')
       .upload(fileName, file, { upsert: true });
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = this.supabase.storage
       .from('logos')
       .getPublicUrl(fileName);
 
@@ -74,13 +81,13 @@ export class StorageService {
     const timestamp = Date.now();
     const fileName = `${this.organizationId}/deals/${dealId}/${timestamp}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from('deal_attachments')
       .upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = this.supabase.storage
       .from('deal_attachments')
       .getPublicUrl(fileName);
 
@@ -95,13 +102,13 @@ export class StorageService {
     const fileExt = file.name.split('.').pop();
     const fileName = `${this.organizationId}/products/${productId}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from('product-images')
       .upload(fileName, file, { upsert: true });
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = this.supabase.storage
       .from('product-images')
       .getPublicUrl(fileName);
 
@@ -113,7 +120,7 @@ export class StorageService {
    */
   async deleteFile(bucket: string, path: string): Promise<void> {
     this.ensureOrganizationContext();
-    const { error } = await supabase.storage
+    const { error } = await this.supabase.storage
       .from(bucket)
       .remove([path]);
 
@@ -121,5 +128,7 @@ export class StorageService {
   }
 }
 
-// Export singleton instance
-export const storage = new StorageService();
+export function useStorageService(): StorageService {
+  const supabase = useSupabaseClient();
+  return useMemo(() => new StorageService(supabase), [supabase]);
+}

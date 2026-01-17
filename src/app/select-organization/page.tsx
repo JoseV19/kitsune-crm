@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import OrganizationSelector from '@/components/organization-selector';
 import { UserOrganizationMembership } from '@/types/organization';
-import { buildSubdomainUrl } from '@/lib/utils/url-helper';
+import { buildLastOrganizationCookie, buildTenantPath } from '@/lib/utils/url-helper';
 
 export default function SelectOrganizationPage() {
   const router = useRouter();
@@ -60,11 +60,13 @@ export default function SelectOrganizationPage() {
 
     // Store as last accessed organization
     localStorage.setItem('last_organization_slug', slug);
+    document.cookie = buildLastOrganizationCookie(slug, window.location.host);
 
     const protocol = window.location.protocol;
     const host = window.location.host;
-    const baseUrl = buildSubdomainUrl(slug, host, protocol);
-    window.location.href = baseUrl;
+    void protocol;
+    void host;
+    router.push(buildTenantPath(slug, '/dashboard'));
   };
 
   return (

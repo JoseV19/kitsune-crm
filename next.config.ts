@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
         hostname: "api.dicebear.com",
         pathname: "/7.x/avataaars/svg",
       },
+      {
+        protocol: "https",
+        hostname: "img.clerk.com",
+        pathname: "/**",
+      },
     ],
   },
 };

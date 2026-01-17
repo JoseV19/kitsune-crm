@@ -2,8 +2,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
-import { storage } from '@/lib/services/supabase/storage.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
+import { useStorageService } from '@/lib/services/supabase/storage.service';
 import { useSupabaseClient } from '@/lib/services/supabase/client';
 // Importamos el generador actualizado
 import { generarPDFZionak } from '@/lib/pdfGenerator';
@@ -36,6 +36,8 @@ interface ClientDetailsPanelProps {
 
 export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClientDeleted }: ClientDetailsPanelProps) {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
+  const storage = useStorageService();
   const [client, setClient] = useState<Client | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);

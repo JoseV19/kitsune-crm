@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
-import { storage } from '@/lib/services/supabase/storage.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
+import { useStorageService } from '@/lib/services/supabase/storage.service';
 import { Product } from '@/types/crm';
 import { 
   Search, Plus, Package, Edit2, Trash2, X, 
@@ -12,11 +12,12 @@ import Link from 'next/link';
 
 export default function ProductsPage() {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
+  const storage = useStorageService();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Estado del Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
@@ -55,17 +56,13 @@ export default function ProductsPage() {
     try {
       let finalImageUrl = currentProduct.image_url;
 
-      // 1. Si hay nueva imagen, subirla
       if (imageFile && currentProduct.id) {
         finalImageUrl = await storage.uploadProductImage(imageFile, currentProduct.id);
       } else if (imageFile) {
-        // For new products, we'll need to create it first, then update with image
-        // For now, use a temp approach
         const tempId = `temp-${Date.now()}`;
         finalImageUrl = await storage.uploadProductImage(imageFile, tempId);
       }
 
-      // 2. Guardar en Base de Datos
       const productData = {
         name: currentProduct.name!,
         description: currentProduct.description || null,
@@ -75,24 +72,19 @@ export default function ProductsPage() {
       } as Omit<Product, 'id' | 'created_at' | 'organization_id'>;
 
       if (currentProduct.id) {
-        // Actualizar
         await db.updateProduct(currentProduct.id, productData);
-        // If we uploaded with temp ID, re-upload with real ID
         if (imageFile && finalImageUrl?.includes('temp-')) {
           const realImageUrl = await storage.uploadProductImage(imageFile, currentProduct.id);
           await db.updateProduct(currentProduct.id, { image_url: realImageUrl });
         }
       } else {
-        // Crear nuevo
         const newProduct = await db.createProduct(productData);
-        // If we uploaded with temp ID, re-upload with real ID
         if (imageFile && finalImageUrl?.includes('temp-')) {
           const realImageUrl = await storage.uploadProductImage(imageFile, newProduct.id);
           await db.updateProduct(newProduct.id, { image_url: realImageUrl });
         }
       }
 
-      // 3. Limpiar y recargar
       setIsModalOpen(false);
       setImageFile(null);
       setCurrentProduct({});
@@ -126,7 +118,6 @@ export default function ProductsPage() {
     setIsModalOpen(true);
   };
 
-  // Filtrado
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -134,8 +125,6 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans p-8">
-      
-      {/* HEADER */}
       <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -158,12 +147,10 @@ export default function ProductsPage() {
           <button onClick={openNew} className="bg-kiriko-teal text-black font-bold px-4 py-2 rounded-lg hover:bg-teal-400 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(45,212,191,0.3)]">
             <Plus size={18} /> Nuevo Producto
           </button>
-          {/* Botón temporal para volver al dashboard si no tienes menú lateral aún configurado */}
           <Link href="/" className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700">Volver</Link>
         </div>
       </div>
 
-      {/* GRID DE PRODUCTOS */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {isLoading ? (
           <div className="col-span-full text-center py-20 text-slate-500">
@@ -177,7 +164,6 @@ export default function ProductsPage() {
         ) : (
           filteredProducts.map(product => (
             <div key={product.id} className="group bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden hover:border-kiriko-teal/50 transition-all hover:shadow-[0_0_20px_rgba(45,212,191,0.1)] flex flex-col">
-              {/* Imagen */}
               <div className="h-48 bg-slate-950 relative overflow-hidden flex items-center justify-center">
                 {product.image_url ? (
                   <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
@@ -190,7 +176,6 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              {/* Info */}
               <div className="p-4 flex-1 flex flex-col">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-bold text-white leading-tight">{product.name}</h3>
@@ -208,7 +193,6 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* MODAL CREAR/EDITAR */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-[#0f172a] border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -221,7 +205,6 @@ export default function ProductsPage() {
             </div>
 
             <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
-              {/* Nombre */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nombre del Producto</label>
                 <input 
@@ -233,7 +216,6 @@ export default function ProductsPage() {
                 />
               </div>
 
-              {/* Precio y SKU */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><DollarSign size={12}/> Precio (Q)</label>
@@ -256,7 +238,6 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              {/* Descripción */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Descripción</label>
                 <textarea 
@@ -267,7 +248,6 @@ export default function ProductsPage() {
                 />
               </div>
 
-              {/* Imagen */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><ImageIcon size={12}/> Imagen</label>
                 <input 
@@ -295,7 +275,6 @@ export default function ProductsPage() {
   );
 }
 
-// Icono simple para el botón
 const SaveIconCustom = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
 );

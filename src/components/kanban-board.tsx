@@ -19,8 +19,8 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
-import { storage } from '@/lib/services/supabase/storage.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
+import { useStorageService } from '@/lib/services/supabase/storage.service';
 import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for complex queries
 import {
   AlertDialog,
@@ -76,6 +76,8 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = '' }: KanbanBoardProps) {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
+  const storage = useStorageService();
   const supabase = useSupabaseClient();
   const [columns, setColumns] = useState<Column[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);

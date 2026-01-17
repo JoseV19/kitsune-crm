@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOrganizationId } from "@/lib/contexts/organization-context";
-import { db } from "@/lib/services/supabase/database.service";
-import { storage } from "@/lib/services/supabase/storage.service";
+import { useDatabaseService } from "@/lib/services/supabase/database.service";
+import { useStorageService } from "@/lib/services/supabase/storage.service";
 import {
   X,
   Save,
@@ -29,6 +29,8 @@ export default function NewClientModal({
   currentUser,
 }: NewClientModalProps) {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
+  const storage = useStorageService();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");

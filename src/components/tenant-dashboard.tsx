@@ -4,15 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useOrganization } from "@/lib/contexts/organization-context";
-import { useSupabaseClient } from "@/lib/services/supabase/client";
 import Sidebar from "@/components/sidebar";
 import KanbanBoard from "@/components/kanban-board";
 import ClientDetailsPanel from "@/components/client-details-panel";
 import NewClientModal from "@/components/new-client-modal";
 import { ProfileModal } from "@/components/profile-modal";
-import WelcomeScreen from "@/components/welcome-screen"; 
-import DashboardView from "@/components/dashboard-view"; 
-import { Search } from "lucide-react"; 
+import WelcomeScreen from "@/components/welcome-screen";
+import DashboardView from "@/components/dashboard-view";
+import { Search } from "lucide-react";
 
 interface UserData {
   name: string;
@@ -20,22 +19,20 @@ interface UserData {
   avatar: string;
 }
 
-export default function AppPage() {
+export default function TenantDashboard() {
   const router = useRouter();
   const { user: clerkUser, isLoaded: isAuthLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const { organization, isLoading: orgLoading } = useOrganization();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<UserData>({
     name: "Usuario",
     role: "Miembro",
     avatar: "",
   });
 
-  const [currentView, setCurrentView] = useState<"home" | "kanban" | "dashboard">("home"); 
-  
+  const [currentView, setCurrentView] = useState<"home" | "kanban" | "dashboard">("home");
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [is360Open, setIs360Open] = useState(false);
@@ -43,29 +40,23 @@ export default function AppPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const supabase = useSupabaseClient();
-
   useEffect(() => {
     const checkAuth = async () => {
       if (!isAuthLoaded) return;
 
       if (isSignedIn && clerkUser) {
         setIsAuthenticated(true);
-        setUserId(clerkUser.id);
-        
-        // Update user state from Clerk data
-        setUser(prev => ({
+
+        setUser((prev) => ({
           ...prev,
           name: clerkUser.fullName || clerkUser.firstName || "Usuario",
           avatar: clerkUser.imageUrl || prev.avatar,
         }));
 
-        // Load additional user data from localStorage if needed, or stick to Clerk
         const savedUser = localStorage.getItem("kitsune_user");
         if (savedUser) {
           try {
-            const parsed = JSON.parse(savedUser);
-            // Optional: merge with Clerk data or just use Clerk for consistency
+            JSON.parse(savedUser);
           } catch (e) {
             // Invalid JSON, use defaults
           }
@@ -108,33 +99,7 @@ export default function AppPage() {
     );
   }
 
-  // Check if we're on a subdomain - if so, we need an organization
-  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-  const subdomain = hostname.split('.')[0];
-  const isMainDomain = !subdomain || subdomain === 'localhost' || subdomain.includes(':');
-  
-  // If on subdomain but no organization, show redirecting (organization provider will handle redirect)
-  if (!isMainDomain && !organization && !orgLoading) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
-        Redirigiendo...
-      </div>
-    );
-  }
-  
-  // If on main domain and authenticated but no organization, redirect logic should handle it
-  // But if we get here, something went wrong - redirect to home
-  if (isMainDomain && !organization && !orgLoading) {
-    router.push('/');
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
-        Redirigiendo...
-      </div>
-    );
-  }
-  
-  // If we have an organization, show the app
-  if (!organization) {
+  if (!organization && !orgLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
         Cargando...
@@ -142,7 +107,6 @@ export default function AppPage() {
     );
   }
 
- 
   const getPageTitle = () => {
     switch (currentView) {
       case 'home': return 'Centro de Comando';
@@ -184,7 +148,7 @@ export default function AppPage() {
           <div className="flex items-center gap-6">
             {currentView === "kanban" && (
               <div className="relative group animate-in fade-in slide-in-from-right-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={16}/>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-kiriko-teal transition-colors" size={16} />
                 <input
                   type="text"
                   placeholder="Buscar cliente..."
@@ -209,14 +173,11 @@ export default function AppPage() {
         <div className="h-[1px] w-full bg-gradient-to-r from-slate-800 via-slate-800 to-transparent mb-6 mx-8 opacity-50"></div>
 
         <div className="flex-1 overflow-hidden px-8 pb-4 relative">
-          
-          
-          
           {currentView === "home" && (
-             <WelcomeScreen 
-                userName={user.name}
-                onNavigateToKanban={() => setCurrentView('kanban')}
-             />
+            <WelcomeScreen
+              userName={user.name}
+              onNavigateToKanban={() => setCurrentView('kanban')}
+            />
           )}
 
           {currentView === "kanban" && (
@@ -228,11 +189,10 @@ export default function AppPage() {
           )}
 
           {currentView === "dashboard" && (
-             <div className="h-full overflow-y-auto custom-scrollbar pb-10">
-                <DashboardView />
-             </div>
+            <div className="h-full overflow-y-auto custom-scrollbar pb-10">
+              <DashboardView />
+            </div>
           )}
-
         </div>
         <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-kiriko-teal/20 to-transparent pointer-events-none"></div>
       </main>

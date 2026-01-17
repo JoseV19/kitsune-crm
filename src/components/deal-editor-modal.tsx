@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { X, Plus, Trash2, Search, Calculator, Save, Package } from 'lucide-react';
 import { Deal, Product, DealItem } from '@/types/crm';
 
@@ -14,6 +14,7 @@ interface DealEditorModalProps {
 
 export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: DealEditorModalProps) {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
   const [items, setItems] = useState<DealItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');

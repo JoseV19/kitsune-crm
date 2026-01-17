@@ -1,5 +1,5 @@
 /**
- * Utility functions for constructing subdomain URLs
+ * Utility functions for constructing subdomain URLs and parsing hosts.
  */
 
 /**
@@ -33,6 +33,31 @@ export function getBaseHost(host: string): string {
   }
 }
 
+export interface HostInfo {
+  baseHost: string;
+  subdomain: string | null;
+  isLocalhost: boolean;
+  isMainDomain: boolean;
+}
+
+export function getHostInfo(host: string): HostInfo {
+  const isLocalhost = host.includes('localhost');
+  const parts = host.split('.');
+  const subdomain =
+    (isLocalhost && parts.length > 1) || (!isLocalhost && parts.length > 2)
+      ? parts[0]
+      : null;
+  const baseHost = getBaseHost(host);
+  const isMainDomain = !subdomain || subdomain === 'www' || subdomain === 'localhost';
+
+  return {
+    baseHost,
+    subdomain: subdomain && subdomain !== 'www' ? subdomain : null,
+    isLocalhost,
+    isMainDomain,
+  };
+}
+
 /**
  * Constructs a subdomain URL from the current location
  * @param slug - The organization slug
@@ -45,6 +70,34 @@ export function buildSubdomainUrl(
   currentHost: string,
   protocol: string
 ): string {
-  const baseHost = getBaseHost(currentHost);
-  return `${protocol}//${slug}.${baseHost}`;
+  const { baseHost } = getHostInfo(currentHost);
+  return `${protocol}//${baseHost}/${slug}`;
+}
+
+export function buildTenantPath(slug: string, path = ''): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `/${slug}${normalizedPath}`;
+}
+
+const LAST_ORG_COOKIE = 'last_organization_slug';
+
+export function getLastOrganizationCookieName(): string {
+  return LAST_ORG_COOKIE;
+}
+
+export function buildLastOrganizationCookie(slug: string, host: string): string {
+  const { baseHost, isLocalhost } = getHostInfo(host);
+  const domain = isLocalhost ? '' : `; Domain=.${baseHost}`;
+  const secure = isLocalhost ? '' : '; Secure';
+  return `${LAST_ORG_COOKIE}=${slug}; Path=/; Max-Age=31536000; SameSite=Lax${domain}${secure}`;
+}
+
+export function getLastOrganizationCookieFromDocument(): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const cookie = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${LAST_ORG_COOKIE}=`));
+  return cookie ? cookie.split('=')[1] : null;
 }

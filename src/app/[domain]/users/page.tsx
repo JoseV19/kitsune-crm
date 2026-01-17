@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useUser, useSession } from '@clerk/nextjs';
 import { useOrganization } from '@/lib/contexts/organization-context';
 import { useIsOrgOwner } from '@/lib/hooks/use-is-org-owner';
 import { createUserSchema, type CreateUserFormData } from '@/lib/validations/user-management.schema';
 import { createUser, getOrganizationUsers, removeUserFromOrganization, type OrganizationUser } from '@/lib/services/user.service';
 import { Loader2, UserPlus, Mail, User, Shield, Trash2, X, Plus } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 export default function UsersPage() {
   const router = useRouter();
@@ -102,7 +102,6 @@ export default function UsersPage() {
     }
   };
 
-  // Redirect if not owner
   useEffect(() => {
     if (!isOwner && !loading) {
       router.push('/');
@@ -150,7 +149,6 @@ export default function UsersPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white p-8">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Gestión de Usuarios</h1>
@@ -165,14 +163,12 @@ export default function UsersPage() {
           </button>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
             ⚠️ {error}
           </div>
         )}
 
-        {/* Users Table */}
         <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -265,7 +261,6 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Create User Modal */}
         {isCreateModalOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">

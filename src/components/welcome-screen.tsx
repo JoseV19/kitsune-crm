@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for count queries
 import {
   TrendingUp, Users, Package, ArrowRight,
@@ -18,6 +18,7 @@ interface DashboardStats {
 
 export default function WelcomeScreen({ userName, onNavigateToKanban }: { userName: string, onNavigateToKanban: () => void }) {
   const organizationId = useOrganizationId();
+  const db = useDatabaseService();
   const supabase = useSupabaseClient();
   const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, activeDeals: 0, totalClients: 0, productsCount: 0 });
   const [loading, setLoading] = useState(true);

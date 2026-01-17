@@ -1,9 +1,11 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { Organization } from '@/types/organization';
 import { useSupabaseClient } from '@/lib/services/supabase/client';
+import { buildSubdomainUrl } from '@/lib/utils/url-helper';
 
 interface OrganizationContextType {
   organization: Organization | null;
@@ -17,18 +19,23 @@ interface OrganizationContextType {
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
-export function OrganizationProvider({ 
-  children, 
-  initialOrganization 
-}: { 
+export function OrganizationProvider({
+  children,
+  initialOrganization,
+  slug,
+}: {
   children: ReactNode;
   initialOrganization?: Organization | null;
+  slug?: string | null;
 }) {
+  const router = useRouter();
   const { user, isLoaded } = useUser();
   const supabase = useSupabaseClient();
   const [organization, setOrganization] = useState<Organization | null>(initialOrganization || null);
   const [isLoading, setIsLoading] = useState(!initialOrganization);
   const [error, setError] = useState<string | null>(null);
+
+  const getCurrentSlug = () => slug ?? null;
 
   const refreshOrganization = async () => {
     if (!isLoaded) return;
@@ -37,11 +44,8 @@ export function OrganizationProvider({
       setIsLoading(true);
       setError(null);
 
-      const hostname = window.location.hostname;
-      const subdomain = hostname.split('.')[0];
-      const isMainDomain = !subdomain || subdomain === 'localhost' || subdomain === 'www' || subdomain.includes(':');
-
-      if (isMainDomain) {
+      const currentSlug = getCurrentSlug();
+      if (!currentSlug) {
         setOrganization(null);
         setIsLoading(false);
         return;
@@ -50,7 +54,7 @@ export function OrganizationProvider({
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('slug', subdomain)
+        .eq('slug', currentSlug)
         .single();
 
       if (orgError || !org) {
@@ -108,54 +112,19 @@ export function OrganizationProvider({
       .filter((org): org is Organization => !!org);
   };
 
-  const switchOrganization = (slug: string) => {
+  const switchOrganization = (targetSlug: string) => {
+    if (typeof window === 'undefined') return;
     const protocol = window.location.protocol;
     const host = window.location.host;
-    const isLocalhost = host.includes('localhost');
-    const baseUrl = isLocalhost
-      ? `${protocol}//${slug}.${host}`
-      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
-    window.location.href = baseUrl;
+    const baseUrl = buildSubdomainUrl(targetSlug, host, protocol);
+    router.push(baseUrl);
   };
 
   useEffect(() => {
     if (!initialOrganization && isLoaded) {
       refreshOrganization();
     }
-  }, [initialOrganization, isLoaded, user]); // Added dependencies
-
-  return (
-    <OrganizationContext.Provider
-      value={{
-        organization,
-        organizationId: organization?.id || null,
-        isLoading,
-        error,
-        refreshOrganization,
-        getUserOrganizations,
-        switchOrganization,
-      }}
-    >
-      {children}
-    </OrganizationContext.Provider>
-  );
-}
-
-  const switchOrganization = (slug: string) => {
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    const isLocalhost = host.includes('localhost');
-    const baseUrl = isLocalhost
-      ? `${protocol}//${slug}.${host}`
-      : `${protocol}//${slug}.${host.split('.').slice(1).join('.')}`;
-    window.location.href = baseUrl;
-  };
-
-  useEffect(() => {
-    if (!initialOrganization) {
-      refreshOrganization();
-    }
-  }, [initialOrganization]);
+  }, [initialOrganization, isLoaded, user, slug]);
 
   return (
     <OrganizationContext.Provider

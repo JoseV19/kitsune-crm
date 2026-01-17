@@ -1,6 +1,8 @@
-import { supabase } from './client';
 import { Client, Deal, Product, Contact, Activity, DealItem } from '@/types/crm';
 import { OrganizationSettings } from '@/types/crm';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { useMemo } from 'react';
+import { useSupabaseClient } from '@/lib/services/supabase/client';
 
 /**
  * Database service with organization context
@@ -8,6 +10,11 @@ import { OrganizationSettings } from '@/types/crm';
  */
 export class DatabaseService {
   private organizationId: string | null = null;
+  private supabase: SupabaseClient;
+
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase;
+  }
 
   /**
    * Set the organization context for all operations
@@ -36,7 +43,7 @@ export class DatabaseService {
 
   async getClients(): Promise<Client[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('clients')
       .select('*')
       .eq('organization_id', this.organizationId!)
@@ -48,7 +55,7 @@ export class DatabaseService {
 
   async getClientById(id: string): Promise<Client | null> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('clients')
       .select('*')
       .eq('id', id)
@@ -61,7 +68,7 @@ export class DatabaseService {
 
   async createClient(client: Omit<Client, 'id' | 'created_at'>): Promise<Client> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('clients')
       .insert({
         ...client,
@@ -76,7 +83,7 @@ export class DatabaseService {
 
   async updateClient(id: string, updates: Partial<Client>): Promise<Client> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('clients')
       .update(updates)
       .eq('id', id)
@@ -90,7 +97,7 @@ export class DatabaseService {
 
   async deleteClient(id: string): Promise<void> {
     this.ensureOrganizationContext();
-    const { error } = await supabase
+    const { error } = await this.supabase
       .from('clients')
       .delete()
       .eq('id', id)
@@ -103,7 +110,7 @@ export class DatabaseService {
 
   async getDeals(): Promise<Deal[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deals')
       .select('*')
       .eq('organization_id', this.organizationId!)
@@ -115,7 +122,7 @@ export class DatabaseService {
 
   async getDealById(id: string): Promise<Deal | null> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deals')
       .select('*')
       .eq('id', id)
@@ -128,7 +135,7 @@ export class DatabaseService {
 
   async createDeal(deal: Omit<Deal, 'id' | 'created_at'>): Promise<Deal> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deals')
       .insert({
         ...deal,
@@ -143,7 +150,7 @@ export class DatabaseService {
 
   async updateDeal(id: string, updates: Partial<Deal>): Promise<Deal> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deals')
       .update(updates)
       .eq('id', id)
@@ -157,7 +164,7 @@ export class DatabaseService {
 
   async deleteDeal(id: string): Promise<void> {
     this.ensureOrganizationContext();
-    const { error } = await supabase
+    const { error } = await this.supabase
       .from('deals')
       .delete()
       .eq('id', id)
@@ -170,7 +177,7 @@ export class DatabaseService {
 
   async getProducts(): Promise<Product[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('products')
       .select('*')
       .eq('organization_id', this.organizationId!)
@@ -182,7 +189,7 @@ export class DatabaseService {
 
   async createProduct(product: Omit<Product, 'id' | 'created_at'>): Promise<Product> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('products')
       .insert({
         ...product,
@@ -197,7 +204,7 @@ export class DatabaseService {
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('products')
       .update(updates)
       .eq('id', id)
@@ -211,7 +218,7 @@ export class DatabaseService {
 
   async deleteProduct(id: string): Promise<void> {
     this.ensureOrganizationContext();
-    const { error } = await supabase
+    const { error } = await this.supabase
       .from('products')
       .delete()
       .eq('id', id)
@@ -224,7 +231,7 @@ export class DatabaseService {
 
   async getContacts(clientId: string): Promise<Contact[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('contacts')
       .select('*')
       .eq('client_id', clientId)
@@ -236,7 +243,7 @@ export class DatabaseService {
 
   async createContact(contact: Omit<Contact, 'id' | 'created_at'>): Promise<Contact> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('contacts')
       .insert(contact)
       .select()
@@ -250,7 +257,7 @@ export class DatabaseService {
 
   async getActivities(clientId: string): Promise<Activity[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('client_activities')
       .select('*')
       .eq('client_id', clientId)
@@ -263,7 +270,7 @@ export class DatabaseService {
 
   async createActivity(activity: Omit<Activity, 'id' | 'created_at'>): Promise<Activity> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('client_activities')
       .insert({
         ...activity,
@@ -280,7 +287,7 @@ export class DatabaseService {
 
   async getDealItems(dealId: string): Promise<DealItem[]> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deal_items')
       .select('*, product:products(name, sku)')
       .eq('deal_id', dealId)
@@ -292,7 +299,7 @@ export class DatabaseService {
 
   async createDealItem(item: Omit<DealItem, 'id' | 'organization_id'>): Promise<DealItem> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deal_items')
       .insert({
         ...item,
@@ -307,7 +314,7 @@ export class DatabaseService {
 
   async updateDealItem(id: string, updates: Partial<DealItem>): Promise<DealItem> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('deal_items')
       .update(updates)
       .eq('id', id)
@@ -321,7 +328,7 @@ export class DatabaseService {
 
   async deleteDealItem(id: string): Promise<void> {
     this.ensureOrganizationContext();
-    const { error } = await supabase
+    const { error } = await this.supabase
       .from('deal_items')
       .delete()
       .eq('id', id)
@@ -334,7 +341,7 @@ export class DatabaseService {
 
   async getOrganizationSettings(): Promise<OrganizationSettings | null> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('organization_settings')
       .select('*')
       .eq('organization_id', this.organizationId!)
@@ -346,7 +353,7 @@ export class DatabaseService {
 
   async updateOrganizationSettings(settings: Partial<OrganizationSettings>): Promise<OrganizationSettings> {
     this.ensureOrganizationContext();
-    const { data, error } = await supabase
+    const { data, error } = await this.supabase
       .from('organization_settings')
       .update(settings)
       .eq('organization_id', this.organizationId!)
@@ -358,5 +365,7 @@ export class DatabaseService {
   }
 }
 
-// Export singleton instance
-export const db = new DatabaseService();
+export function useDatabaseService(): DatabaseService {
+  const supabase = useSupabaseClient();
+  return useMemo(() => new DatabaseService(supabase), [supabase]);
+}

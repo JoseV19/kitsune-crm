@@ -8,7 +8,7 @@ import { useUser, useSession, useClerk } from '@clerk/nextjs';
 import { createOrganizationSchema, type CreateOrganizationFormData } from '@/lib/validations/organization.schema';
 import { checkSlugAvailability } from '@/lib/services/organization.service';
 import { generateSlug } from '@/lib/utils/slug-generator';
-import { buildSubdomainUrl } from '@/lib/utils/url-helper';
+import { buildLastOrganizationCookie, buildTenantPath } from '@/lib/utils/url-helper';
 import { Loader2, Upload, Building2, Globe, LogOut } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 
@@ -243,13 +243,14 @@ export default function OnboardingPage() {
 
       // Store as last accessed organization
       localStorage.setItem('last_organization_slug', data.slug);
+      document.cookie = buildLastOrganizationCookie(data.slug, window.location.host);
 
       // Redirect to organization subdomain
       const protocol = window.location.protocol;
       const host = window.location.host;
-      const baseUrl = buildSubdomainUrl(data.slug, host, protocol);
-
-      router.push(baseUrl);
+      void protocol;
+      void host;
+      router.push(buildTenantPath(data.slug, '/dashboard'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear la organización');
     } finally {

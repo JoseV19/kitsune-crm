@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
-import { db } from '@/lib/services/supabase/database.service';
+import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for complex queries
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -23,6 +23,7 @@ const STAGE_CONFIG = [
 
 export default function DashboardView() {
     const organizationId = useOrganizationId();
+    const db = useDatabaseService();
     const supabase = useSupabaseClient();
     const [loading, setLoading] = useState(true);
 
