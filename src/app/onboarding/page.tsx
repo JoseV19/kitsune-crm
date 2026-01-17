@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
+  const [isLocalhost, setIsLocalhost] = useState(false);
 
   const {
     register,
@@ -48,6 +49,11 @@ export default function OnboardingPage() {
       router.push('/');
     }
   }, [isLoaded, user, router]);
+
+  // Set localhost detection after mount to avoid hydration mismatch
+  useEffect(() => {
+    setIsLocalhost(window.location.host.includes('localhost'));
+  }, []);
 
   const organizationName = watch('name');
   const slug = watch('slug');
@@ -218,7 +224,7 @@ export default function OnboardingPage() {
               </label>
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 text-sm">
-                  {typeof window !== 'undefined' && window.location.host.includes('localhost')
+                  {isLocalhost
                     ? `${slug || 'tu-organizacion'}.localhost:3000`
                     : `${slug || 'tu-organizacion'}.kitsunecrm.com`}
                 </span>
