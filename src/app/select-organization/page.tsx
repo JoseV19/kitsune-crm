@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import OrganizationSelector from '@/components/organization-selector';
 import { UserOrganizationMembership } from '@/types/organization';
-import { buildLastOrganizationCookie, buildTenantPath } from '@/lib/utils/url-helper';
+import { buildLastOrganizationCookie, buildTenantPath, getLastOrganizationCookieFromDocument } from '@/lib/utils/url-helper';
 import Image from 'next/image';
 
 export default function SelectOrganizationPage() {
@@ -15,6 +15,7 @@ export default function SelectOrganizationPage() {
   const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const handleSelectOrganization = useCallback((membership: UserOrganizationMembership) => {
     const slug = membership.organization?.slug;
@@ -27,10 +28,15 @@ export default function SelectOrganizationPage() {
     localStorage.setItem('last_organization_slug', slug);
     document.cookie = buildLastOrganizationCookie(slug, window.location.host);
 
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    void protocol;
-    void host;
+    router.push(buildTenantPath(slug, '/dashboard'));
+  }, [router]);
+
+  const redirectToOrganization = useCallback((slug: string) => {
+    setIsRedirecting(true);
+    localStorage.setItem('last_organization_slug', slug);
+    if (typeof window !== 'undefined') {
+      document.cookie = buildLastOrganizationCookie(slug, window.location.host);
+    }
     router.push(buildTenantPath(slug, '/dashboard'));
   }, [router]);
 
@@ -43,36 +49,75 @@ export default function SelectOrganizationPage() {
         setError(null);
 
         if (!user) {
+          setIsRedirecting(true);
           router.push('/');
           return;
         }
 
+        // First, check if there's a last visited organization
+        const lastOrgSlug = typeof window !== 'undefined' 
+          ? (getLastOrganizationCookieFromDocument() || localStorage.getItem('last_organization_slug'))
+          : null;
+
         const activeMemberships = await getActiveUserOrganizations(user.id);
 
         if (activeMemberships.length === 0) {
+          setIsRedirecting(true);
           router.push('/onboarding');
           return;
         }
 
+        // If there's a last visited organization, check if it's still valid
+        if (lastOrgSlug) {
+          const lastOrgMembership = activeMemberships.find(
+            (m) => m.organization?.slug === lastOrgSlug
+          );
+          if (lastOrgMembership?.organization?.slug) {
+            redirectToOrganization(lastOrgMembership.organization.slug);
+            return;
+          }
+        }
+
+        // If only one organization, redirect to it immediately
         if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
-          const slug = activeMemberships[0].organization.slug;
-          localStorage.setItem('last_organization_slug', slug);
-          document.cookie = buildLastOrganizationCookie(slug, window.location.host);
-          router.push(buildTenantPath(slug, '/dashboard'));
+          redirectToOrganization(activeMemberships[0].organization.slug);
           return;
         }
 
-        setMemberships(activeMemberships);
+        // Only set memberships if we have 2+ organizations to show
+        if (activeMemberships.length >= 2) {
+          setMemberships(activeMemberships);
+          setLoading(false);
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al cargar organizaciones';
         setError(errorMessage);
-      } finally {
         setLoading(false);
       }
     };
 
     loadOrganizations();
-  }, [router, user, isLoaded, handleSelectOrganization]);
+  }, [router, user, isLoaded, redirectToOrganization]);
+
+  // Don't render content if we're redirecting or still loading and have no memberships
+  if (isRedirecting || (loading && memberships.length === 0)) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(45,212,191,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(45,212,191,0.05)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-kiriko-teal/5 blur-[120px] rounded-full"></div>
+        </div>
+        <div className="relative z-10 text-kiriko-teal font-mono tracking-widest animate-pulse uppercase text-sm">
+          Redirigiendo...
+        </div>
+      </div>
+    );
+  }
+
+  // Only render the selector if we have 2+ organizations
+  if (memberships.length < 2) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">

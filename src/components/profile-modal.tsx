@@ -92,7 +92,7 @@ export function ProfileModal({
     // Stop propagation to prevent form submission, but don't prevent default
     // so the file input can work normally
     e.stopPropagation();
-    
+
     const file = e.target.files?.[0];
     if (!file || !user) {
       // Reset input value to allow selecting the same file again
@@ -121,27 +121,27 @@ export function ProfileModal({
       // Create a preview URL immediately for better UX
       const previewUrl = URL.createObjectURL(file);
       setLocalImageUrl(previewUrl);
-      
+
       // Use setProfileImage with proper error handling
       // Clerk will update the user object automatically
       await user.setProfileImage({ file });
-      
+
       // Wait a moment for Clerk to process the image
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       // Clear preview and use Clerk's updated URL
       setLocalImageUrl(null);
       URL.revokeObjectURL(previewUrl);
-      
+
       // Force image refresh by updating the timestamp
       setImageTimestamp(Date.now());
       setIsUploadingImage(false);
-      
+
       // Clear the input to allow selecting the same file again
       e.target.value = '';
     } catch (error) {
       console.error('Error uploading profile image:', error);
-      
+
       // Provide more specific error messages
       const errorObj = error as { status?: number; message?: string };
       if (errorObj?.status === 413 || errorObj?.message?.includes('size')) {
@@ -151,7 +151,7 @@ export function ProfileModal({
       } else {
         setUploadError('Error al subir la imagen. Por favor intenta de nuevo.');
       }
-      
+
       setIsUploadingImage(false);
       if (localImageUrl) {
         URL.revokeObjectURL(localImageUrl);
@@ -243,7 +243,7 @@ export function ProfileModal({
                 )}
               </div>
               {isLoaded && user && !isUploadingImage && (
-                <label 
+                <label
                   className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   onClick={(e) => {
                     // Only stop propagation to prevent form submission, but allow file input to work
@@ -284,23 +284,17 @@ export function ProfileModal({
                 className="w-full bg-kiriko-card-bg text-white border border-slate-700 focus:border-kiriko-teal focus:outline-none p-3 rounded-sm text-sm transition-all focus:shadow-[0_0_10px_rgba(45,212,191,0.2)]"
               />
             </div>
-
             <div>
               <label className="block text-xs text-slate-400 mb-1 uppercase tracking-wider">
                 Rango / Rol
               </label>
-              <div className="relative">
-                <Shield
-                  className="absolute left-3 top-3 text-slate-500"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full bg-kiriko-card-bg text-white border border-slate-700 focus:border-kiriko-teal focus:outline-none p-3 pl-10 rounded-sm text-sm transition-all"
-                />
-              </div>
+
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full bg-kiriko-card-bg text-white border border-slate-700 focus:border-kiriko-teal focus:outline-none p-3 rounded-sm text-sm transition-all focus:shadow-[0_0_10px_rgba(45,212,191,0.2)]"
+              />
             </div>
           </div>
 
