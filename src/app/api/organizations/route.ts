@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body - could be JSON or FormData
     const contentType = request.headers.get('content-type') || '';
-    let body: any;
+    let body: { name: string; slug: string; logo_background_color?: string; logo_url?: string | null };
     let logoFile: File | null = null;
 
     if (contentType.includes('multipart/form-data')) {
@@ -156,19 +156,21 @@ export async function POST(request: NextRequest) {
       organization,
       message: 'Organización creada exitosamente',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating organization:', error);
     
     // Handle Zod validation errors
-    if (error.name === 'ZodError') {
+    if (error instanceof Error && error.name === 'ZodError') {
+      const zodError = error as Error & { errors?: Array<{ message?: string }> };
       return NextResponse.json(
-        { error: error.errors[0]?.message || 'Error de validación' },
+        { error: zodError.errors?.[0]?.message || 'Error de validación' },
         { status: 400 }
       );
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Error al crear organización';
     return NextResponse.json(
-      { error: error.message || 'Error al crear organización' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

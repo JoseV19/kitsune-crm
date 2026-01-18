@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { getActiveUserOrganizations } from '@/lib/services/organization.service';
 import OrganizationSelector from '@/components/organization-selector';
 import { UserOrganizationMembership } from '@/types/organization';
 import { buildLastOrganizationCookie, buildTenantPath } from '@/lib/utils/url-helper';
+import Image from 'next/image';
 
 export default function SelectOrganizationPage() {
   const router = useRouter();
@@ -14,6 +15,24 @@ export default function SelectOrganizationPage() {
   const [memberships, setMemberships] = useState<UserOrganizationMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleSelectOrganization = useCallback((membership: UserOrganizationMembership) => {
+    const slug = membership.organization?.slug;
+    if (!slug) {
+      setError('No se pudo identificar la organización');
+      return;
+    }
+
+    // Store as last accessed organization
+    localStorage.setItem('last_organization_slug', slug);
+    document.cookie = buildLastOrganizationCookie(slug, window.location.host);
+
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    void protocol;
+    void host;
+    router.push(buildTenantPath(slug, '/dashboard'));
+  }, [router]);
 
   useEffect(() => {
     const loadOrganizations = async () => {
@@ -36,38 +55,24 @@ export default function SelectOrganizationPage() {
         }
 
         if (activeMemberships.length === 1 && activeMemberships[0].organization?.slug) {
-          handleSelectOrganization(activeMemberships[0]);
+          const slug = activeMemberships[0].organization.slug;
+          localStorage.setItem('last_organization_slug', slug);
+          document.cookie = buildLastOrganizationCookie(slug, window.location.host);
+          router.push(buildTenantPath(slug, '/dashboard'));
           return;
         }
 
         setMemberships(activeMemberships);
-      } catch (err: any) {
-        setError(err.message || 'Error al cargar organizaciones');
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al cargar organizaciones';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     loadOrganizations();
-  }, [router, user, isLoaded]);
-
-  const handleSelectOrganization = (membership: UserOrganizationMembership) => {
-    const slug = membership.organization?.slug;
-    if (!slug) {
-      setError('No se pudo identificar la organización');
-      return;
-    }
-
-    // Store as last accessed organization
-    localStorage.setItem('last_organization_slug', slug);
-    document.cookie = buildLastOrganizationCookie(slug, window.location.host);
-
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    void protocol;
-    void host;
-    router.push(buildTenantPath(slug, '/dashboard'));
-  };
+  }, [router, user, isLoaded, handleSelectOrganization]);
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
@@ -78,9 +83,11 @@ export default function SelectOrganizationPage() {
 
       <div className="relative z-10 w-full max-w-xl p-8">
         <div className="text-center mb-8">
-          <img
+          <Image
             src="/logo-kiriko.png"
             alt="Kitsune"
+            width={160}
+            height={160}
             className="w-40 mx-auto mb-4 drop-shadow-[0_0:15px_rgba(45,212,191,0.5)]"
           />
           <h2 className="text-xl font-bold text-white tracking-widest uppercase">

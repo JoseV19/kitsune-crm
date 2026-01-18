@@ -239,7 +239,7 @@ export default function OnboardingPage() {
         throw new Error(errorData.error || 'Error al crear la organización');
       }
 
-      const { organization } = await createResponse.json();
+      await createResponse.json();
 
       // Store as last accessed organization
       localStorage.setItem('last_organization_slug', data.slug);

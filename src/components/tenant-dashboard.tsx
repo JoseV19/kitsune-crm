@@ -38,7 +38,6 @@ export default function TenantDashboard() {
   const [is360Open, setIs360Open] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Fetch user profile from database
   useEffect(() => {
@@ -87,7 +86,7 @@ export default function TenantDashboard() {
     if (isAuthLoaded && isSignedIn && clerkUser && session) {
       fetchUserProfile();
     }
-  }, [isAuthLoaded, isSignedIn, clerkUser?.id, session]);
+  }, [isAuthLoaded, isSignedIn, clerkUser, session]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -118,10 +117,10 @@ export default function TenantDashboard() {
     setIs360Open(true);
   };
 
-  if (isInitialLoading || orgLoading || isRedirecting) {
+  if (isInitialLoading || orgLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-kiriko-teal font-mono tracking-widest animate-pulse uppercase">
-        {isRedirecting ? 'Redirigiendo...' : 'Iniciando Kitsune CRM...'}
+        Iniciando Kitsune CRM...
       </div>
     );
   }
@@ -218,7 +217,6 @@ export default function TenantDashboard() {
 
           {currentView === "kanban" && (
             <KanbanBoard
-              currentUser={user.name}
               onOpenClient={handleOpenClient}
               searchTerm={searchTerm}
             />

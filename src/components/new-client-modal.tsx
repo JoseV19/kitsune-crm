@@ -6,7 +6,6 @@ import {
   X,
   Save,
   Loader2,
-  User,
   Briefcase,
   Mail,
   Phone,
@@ -102,7 +101,7 @@ export default function NewClientModal({
         last_name: lastName || null,
         job_title: jobTitle || null,
         logo_url: finalLogoUrl,
-      } as any);
+      });
 
       // If we uploaded a logo with temp ID, re-upload with real client ID
       if (logoFile && finalLogoUrl) {
@@ -125,13 +124,14 @@ export default function NewClientModal({
         priority: "medium",
         client_id: newClient.id,
         description: `Cliente creado manualmente por ${currentUser || "Admin"}`,
-      } as any);
+      });
 
       onClientCreated();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error:", error);
-      alert("Error: " + (error.message || "Ocurrió un problema"));
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert("Error: " + errorMessage);
     } finally {
       setLoading(false);
     }

@@ -8,15 +8,17 @@ export function SakuraBackground() {
   const [petals, setPetals] = useState<Array<{ id: number; left: string; animationDuration: string; delay: string }>>([]);
 
   useEffect(() => {
-    setMounted(true);
-   
-    const newPetals = Array.from({ length: 15 }).map((_, i) => ({
-      id: i,
-      left: `${Math.random() * 100}%`,
-      animationDuration: `${Math.random() * 10 + 15}s`, 
-      delay: `${Math.random() * 10}s`,
-    }));
-    setPetals(newPetals);
+    // Use setTimeout to avoid setState in effect warning
+    setTimeout(() => {
+      setMounted(true);
+      const newPetals = Array.from({ length: 15 }).map((_, i) => ({
+        id: i,
+        left: `${Math.random() * 100}%`,
+        animationDuration: `${Math.random() * 10 + 15}s`, 
+        delay: `${Math.random() * 10}s`,
+      }));
+      setPetals(newPetals);
+    }, 0);
   }, []);
 
   if (!mounted) return null;

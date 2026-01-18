@@ -1,6 +1,6 @@
 "use server";
 
-import { Organization, UserOrganizationMembership } from '@/types/organization';
+import { Organization, UserOrganizationMembership, OrganizationRole } from '@/types/organization';
 import { generateSlug, isValidSlug } from '@/lib/utils/slug-generator';
 import { createClient } from './supabase/server';
 
@@ -125,11 +125,21 @@ export async function getUserOrganizations(userId: string): Promise<UserOrganiza
   }
 
   // Transform data to ensure type safety - organization should be a single object, not an array
-  return data.map((membership: any) => ({
+  type RawMembership = {
+    id: string;
+    user_id: string;
+    organization_id: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    organization: Organization | Organization[] | null;
+  };
+  return data.map((membership: RawMembership) => ({
     id: membership.id,
     user_id: membership.user_id,
     organization_id: membership.organization_id,
-    role: membership.role,
+    role: membership.role as OrganizationRole,
     is_active: membership.is_active,
     created_at: membership.created_at,
     updated_at: membership.updated_at,
@@ -158,11 +168,21 @@ export async function getActiveUserOrganizations(userId: string): Promise<UserOr
   }
 
   // Transform data to ensure type safety - organization should be a single object, not an array
-  return data.map((membership: any) => ({
+  type RawMembership = {
+    id: string;
+    user_id: string;
+    organization_id: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    organization: Organization | Organization[] | null;
+  };
+  return data.map((membership: RawMembership) => ({
     id: membership.id,
     user_id: membership.user_id,
     organization_id: membership.organization_id,
-    role: membership.role,
+    role: membership.role as OrganizationRole,
     is_active: membership.is_active,
     created_at: membership.created_at,
     updated_at: membership.updated_at,
@@ -194,7 +214,7 @@ export async function switchUserOrganization(
     id: data.id,
     user_id: data.user_id,
     organization_id: data.organization_id,
-    role: data.role,
+    role: data.role as OrganizationRole,
     is_active: data.is_active,
     created_at: data.created_at,
     updated_at: data.updated_at,

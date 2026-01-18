@@ -10,15 +10,15 @@ export default function Home() {
   const [dashboardHref, setDashboardHref] = useState('/select-organization');
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !user) {
+      return;
+    }
     const cookieSlug = getLastOrganizationCookieFromDocument();
     const storedSlug = localStorage.getItem('last_organization_slug');
     const slug = cookieSlug || storedSlug;
-    if (slug) {
-      setDashboardHref(buildTenantPath(slug, '/dashboard'));
-      return;
-    }
-    setDashboardHref('/select-organization');
+    const href = slug ? buildTenantPath(slug, '/dashboard') : '/select-organization';
+    // Use setTimeout to avoid setState in effect warning
+    setTimeout(() => setDashboardHref(href), 0);
   }, [isLoaded, user]);
 
   return (

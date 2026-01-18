@@ -75,7 +75,7 @@ export interface Deal {
   priority: 'low' | 'medium' | 'high';
   expected_close_date?: string | null;
   description?: string | null;
-  files?: any[];
+  files?: Array<{ name: string; url: string; type?: string }>;
   tags?: string[];
   client_id?: string | null;
 

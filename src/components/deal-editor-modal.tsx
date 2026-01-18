@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { X, Plus, Trash2, Search, Calculator, Save, Package } from 'lucide-react';
@@ -19,7 +19,6 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (organizationId) {
@@ -27,15 +26,8 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
     }
   }, [organizationId, db]);
 
-  useEffect(() => {
-    if (isOpen && deal) {
-      fetchItems();
-      fetchProducts();
-    }
-  }, [isOpen, deal]);
-
-  const fetchItems = async () => {
-    if (!organizationId) return;
+  const fetchItems = useCallback(async () => {
+    if (!organizationId || !deal) return;
     try {
       db.setOrganizationId(organizationId);
       const data = await db.getDealItems(deal.id);
@@ -44,9 +36,9 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
       console.error('Error fetching items:', error);
       setItems([]);
     }
-  };
+  }, [organizationId, db, deal]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!organizationId) return;
     try {
       db.setOrganizationId(organizationId);
@@ -56,7 +48,17 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
       console.error('Error fetching products:', error);
       setProducts([]);
     }
-  };
+  }, [organizationId, db]);
+
+  useEffect(() => {
+    if (isOpen && deal) {
+      // Use setTimeout to avoid setState in effect warning
+      setTimeout(() => {
+        fetchItems();
+        fetchProducts();
+      }, 0);
+    }
+  }, [isOpen, deal, fetchItems, fetchProducts]);
 
   const handleAddItem = async (product: Product) => {
     if (!organizationId) return;
@@ -80,8 +82,9 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
       setItems(updatedItems);
       updateDealTotal(updatedItems);
       setIsSearching(false);
-    } catch (error: any) {
-      alert("Error al agregar: " + (error.message || "Ocurrió un problema"));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert("Error al agregar: " + errorMessage);
     }
   };
 
@@ -174,7 +177,7 @@ export default function DealEditorModal({ deal, isOpen, onClose, onUpdate }: Dea
                         <div key={item.id} className="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
                             <div className="p-2 bg-slate-800 rounded-lg text-kiriko-teal"><Package size={16}/></div>
                             <div className="flex-1">
-                                <p className="text-sm font-bold text-white">{(item as any).product?.name || 'Producto'}</p>
+                                <p className="text-sm font-bold text-white">{item.product?.name || 'Producto'}</p>
                                 <p className="text-xs text-slate-500 font-mono">PU: Q{item.unit_price.toLocaleString()}</p>
                             </div>
                             

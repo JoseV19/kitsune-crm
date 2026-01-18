@@ -7,7 +7,6 @@ import { useOrganizationId } from '@/lib/contexts/organization-context';
 
 export function useIsOrgOwner(): boolean {
   const [isOwner, setIsOwner] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const { user, isLoaded } = useUser();
   const supabase = useSupabaseClient();
   const organizationId = useOrganizationId();
@@ -19,13 +18,11 @@ export function useIsOrgOwner(): boolean {
       try {
         if (!user) {
           setIsOwner(false);
-          setIsLoading(false);
           return;
         }
 
         if (!organizationId) {
           setIsOwner(false);
-          setIsLoading(false);
           return;
         }
 
@@ -40,13 +37,11 @@ export function useIsOrgOwner(): boolean {
       } catch (error) {
         console.error('Error checking user role:', error);
         setIsOwner(false);
-      } finally {
-        setIsLoading(false);
       }
     }
 
     checkRole();
-  }, [organizationId, user, isLoaded]); // Added user and isLoaded
+  }, [organizationId, user, isLoaded, supabase]);
 
   return isOwner;
 }

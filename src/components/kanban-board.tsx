@@ -68,13 +68,12 @@ const STAGE_CONFIG: Record<DealStage, { title: string; color: string }> = {
 const STAGE_ORDER: DealStage[] = ['prospect', 'qualified', 'meeting', 'negotiation', 'won'];
 
 interface KanbanBoardProps {
-  currentUser: string;
   onOpenClient: (clientId: string) => void;
   searchTerm?: string;
 }
 
 
-export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = '' }: KanbanBoardProps) {
+export default function KanbanBoard({ onOpenClient, searchTerm = '' }: KanbanBoardProps) {
   const organizationId = useOrganizationId();
   const db = useDatabaseService();
   const storage = useStorageService();
@@ -146,7 +145,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
     });
     setColumns(newColumns);
     setIsLoaded(true);
-  }, [organizationId]);
+  }, [organizationId, supabase]);
 
   useEffect(() => {
     void fetchDeals();
@@ -219,7 +218,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
         setUploadingFile(false);
       }
     },
-    [editingTask],
+    [editingTask, storage],
   );
 
   const handleRemoveFile = useCallback(
@@ -262,7 +261,6 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
         db.setOrganizationId(organizationId);
         await db.createDeal({
           title,
-          organization_id: organizationId,
           stage: newDealStage,
           value: 0,
           currency: 'GTQ',
@@ -451,7 +449,7 @@ export default function KanbanBoard({ currentUser, onOpenClient, searchTerm = ''
         setIsSaving(false);
       }
     },
-    [organizationId, tasksById],
+    [organizationId, tasksById, db],
   );
 
   if (!isLoaded) {

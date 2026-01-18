@@ -1,8 +1,29 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Usamos 'any' para que TypeScript sea flexible y no bloquee el Build
-export const generarPDFZionak = (data: any, config: any = {}) => {
+interface PDFData {
+  cliente?: string;
+  fecha?: string;
+  numeroCotizacion?: string;
+  formaPago?: string;
+  productos?: Array<{
+    nombre: string;
+    cantidad: number;
+    precio: number;
+    total: number;
+  }>;
+  totalFinal?: string;
+}
+
+interface PDFConfig {
+  logo_url?: string;
+  company_name?: string;
+  address?: string;
+  tax_id?: string;
+  email?: string;
+}
+
+export const generarPDFZionak = (data: PDFData, config: PDFConfig = {}) => {
   const doc = new jsPDF();
 
   // 1. LOGO (Si existe en la configuración)
@@ -52,14 +73,13 @@ export const generarPDFZionak = (data: any, config: any = {}) => {
   doc.setFont('helvetica', 'normal'); doc.text(data?.formaPago || '---', 135, 78);
 
   // 5. TABLA DE PRODUCTOS
-  const bodyData = data?.productos?.map((item: any) => [
+  const bodyData = data?.productos?.map((item) => [
       item.nombre,
       item.cantidad,
       `Q${Number(item.precio).toFixed(2)}`,
       `Q${Number(item.total).toFixed(2)}`
   ]) || [];
 
-  // @ts-ignore
   autoTable(doc, {
     startY: 105,
     head: [['DESCRIPCIÓN', 'CANT', 'PRECIO UNIT.', 'TOTAL']],
@@ -70,7 +90,7 @@ export const generarPDFZionak = (data: any, config: any = {}) => {
   });
 
   // 6. TOTALES
-  // @ts-ignore
+  // @ts-expect-error - lastAutoTable may not be in types
   const finalY = doc.lastAutoTable?.finalY || 150;
   
   doc.setFontSize(12);

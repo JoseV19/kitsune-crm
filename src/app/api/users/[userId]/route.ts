@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Create regular client for auth verification (not used with Clerk auth, but keeping for reference if needed)
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+// const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Admin client for membership updates
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -142,10 +142,11 @@ export async function DELETE(
     }
 
     return NextResponse.json({ message: 'Usuario desactivado exitosamente' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error removing user:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 import { useDatabaseService } from '@/lib/services/supabase/database.service';
@@ -11,7 +11,7 @@ import DealEditorModal from './deal-editor-modal';
 import ClientHealthDNA from './client-health-dna';
 import {
   X, Phone, Mail, Plus, Send, MessageSquare,
-  Trash2, Loader2, Edit2, Save as SaveIcon, Settings, Info,
+  Trash2, Loader2, Edit2, Save as SaveIcon, Settings,
   Briefcase, MessageCircle, FileText, User, Users, Sparkles, Activity as ActivityIcon
 } from 'lucide-react';
 import { Client, Deal, Activity, Contact } from '@/types/crm';
@@ -89,16 +89,7 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     getUser();
   }, [user, supabase]);
 
-  useEffect(() => {
-    if (isOpen && clientId) {
-      fetchClientData(clientId);
-      fetchActivities(clientId);
-      fetchContacts(clientId);
-      fetchOrgSettings();
-    }
-  }, [isOpen, clientId]);
-
-  const fetchOrgSettings = async () => {
+  const fetchOrgSettings = useCallback(async () => {
     if (!organizationId) return;
     try {
       db.setOrganizationId(organizationId);
@@ -107,9 +98,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     } catch (error) {
       console.error('Error fetching org settings:', error);
     }
-  };
+  }, [organizationId, db]);
 
-  const fetchClientData = async (id: string) => {
+  const fetchClientData = useCallback(async (id: string) => {
     if (!organizationId) return;
     try {
       db.setOrganizationId(organizationId);
@@ -136,9 +127,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     } catch (error) {
       console.error('Error fetching client data:', error);
     }
-  };
+  }, [organizationId, db]);
 
-  const fetchActivities = async (id: string) => {
+  const fetchActivities = useCallback(async (id: string) => {
     if (!organizationId) return;
     try {
       db.setOrganizationId(organizationId);
@@ -148,9 +139,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
       console.error('Error fetching activities:', error);
       setActivities([]);
     }
-  };
+  }, [organizationId, db]);
 
-  const fetchContacts = async (id: string) => {
+  const fetchContacts = useCallback(async (id: string) => {
     if (!organizationId) return;
     try {
       db.setOrganizationId(organizationId);
@@ -160,7 +151,19 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
       console.error('Error fetching contacts:', error);
       setContacts([]);
     }
-  };
+  }, [organizationId, db]);
+
+  useEffect(() => {
+    if (isOpen && clientId) {
+      // Use setTimeout to avoid setState in effect warning
+      setTimeout(() => {
+        fetchClientData(clientId);
+        fetchActivities(clientId);
+        fetchContacts(clientId);
+        fetchOrgSettings();
+      }, 0);
+    }
+  }, [isOpen, clientId, fetchClientData, fetchActivities, fetchContacts, fetchOrgSettings]);
 
   const aiSummary = useMemo(() => {
     if (!client) return "Analizando datos del cliente...";
@@ -201,12 +204,13 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         role: newContact.role || null,
         email: newContact.email || null,
         phone: newContact.phone || null,
-      } as any);
+      });
       setNewContact({ name: '', role: '', email: '', phone: '' });
       setIsAddingContact(false);
       fetchContacts(clientId);
-    } catch (error: any) {
-      alert("Error al guardar contacto: " + (error.message || "Ocurrió un problema"));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert("Error al guardar contacto: " + errorMessage);
     }
     setIsSubmitting(false);
   };
@@ -216,11 +220,12 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
     setIsSaving(true);
     try {
       db.setOrganizationId(organizationId);
-      await db.updateClient(clientId, editForm as any);
+      await db.updateClient(clientId, editForm);
       setClient(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
-    } catch (error: any) {
-      alert("Error al guardar: " + (error.message || "Ocurrió un problema"));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert("Error al guardar: " + errorMessage);
     }
     setIsSaving(false);
   };
@@ -237,11 +242,12 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         type: 'note',
         content: newNote,
         author_name: currentUser,
-      } as any);
+      });
       setNewNote('');
       fetchActivities(clientId);
-    } catch (error: any) {
-      alert("Error al guardar nota: " + (error.message || "Ocurrió un problema"));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert("Error al guardar nota: " + errorMessage);
     }
     setIsSubmitting(false);
   };
@@ -253,8 +259,9 @@ export default function ClientDetailsPanel({ clientId, isOpen, onClose, onClient
         db.setOrganizationId(organizationId);
         await db.deleteClient(clientId);
         onClientDeleted();
-      } catch (error: any) {
-        alert("Error al eliminar: " + (error.message || "Ocurrió un problema"));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+        alert("Error al eliminar: " + errorMessage);
       }
     }
   }

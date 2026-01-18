@@ -42,24 +42,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({ profile: data });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating user profile:', error);
     
-    if (error.name === 'ZodError') {
+    if (error instanceof Error && error.name === 'ZodError') {
+      const zodError = error as Error & { errors?: unknown };
       return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
+        { error: 'Datos inválidos', details: zodError.errors },
         { status: 400 }
       );
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor';
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
 
@@ -88,10 +90,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ profile: data });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching user profile:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor';
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

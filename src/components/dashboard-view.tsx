@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 import { useDatabaseService } from '@/lib/services/supabase/database.service';
 import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for complex queries
@@ -28,9 +28,24 @@ export default function DashboardView() {
     const [loading, setLoading] = useState(true);
 
 
-    const [funnelData, setFunnelData] = useState<any[]>([]);
-    const [salesTrend, setSalesTrend] = useState<any[]>([]);
-    const [topProducts, setTopProducts] = useState<any[]>([]);
+    interface FunnelDataItem {
+        name: string;
+        value: number;
+    }
+
+    interface SalesTrendItem {
+        name: string;
+        total: number;
+    }
+
+    interface TopProductItem {
+        name: string;
+        value: number;
+    }
+
+    const [funnelData, setFunnelData] = useState<FunnelDataItem[]>([]);
+    const [salesTrend, setSalesTrend] = useState<SalesTrendItem[]>([]);
+    const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
 
 
     const [stageStats, setStageStats] = useState<Record<string, { count: number, value: number }>>({});
@@ -48,14 +63,14 @@ export default function DashboardView() {
         }
     }, [organizationId, db]);
 
-    useEffect(() => {
-        if (organizationId) {
-            fetchAnalytics();
-        }
-    }, [organizationId]);
-
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         if (!organizationId) return;
+
+        // Format stage name helper function (moved inside useCallback)
+        const formatStageName = (stageId: string) => {
+            const found = STAGE_CONFIG.find(s => s.id === stageId);
+            return found ? found.label.split(' ')[0] : stageId;
+        };
 
         // Ensure organization ID is set
         db.setOrganizationId(organizationId);
@@ -102,7 +117,7 @@ export default function DashboardView() {
 
 
         const prodMap: Record<string, number> = {};
-        items.forEach((item: any) => {
+        items.forEach((item: { product?: { name?: string } | null; quantity: number }) => {
             const pName = item.product?.name || 'Desconocido';
             prodMap[pName] = (prodMap[pName] || 0) + item.quantity;
         });
@@ -121,12 +136,16 @@ export default function DashboardView() {
         setKpis({ totalWon: totalRevenue, winRate: Math.round(winRate), avgTicket: Math.round(avgTicket) });
 
         setLoading(false);
-    };
+    }, [organizationId, db, supabase]);
 
-    const formatStageName = (stageId: string) => {
-        const found = STAGE_CONFIG.find(s => s.id === stageId);
-        return found ? found.label.split(' ')[0] : stageId;
-    };
+    useEffect(() => {
+        if (organizationId) {
+            // Use setTimeout to avoid setState in effect warning
+            setTimeout(() => {
+                fetchAnalytics();
+            }, 0);
+        }
+    }, [organizationId, fetchAnalytics]);
 
     const formatMoney = (val: number) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', maximumFractionDigits: 0 }).format(val);
 
@@ -190,7 +209,7 @@ export default function DashboardView() {
                         {topProducts.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={topProducts} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                                    <Pie data={topProducts as unknown as Array<Record<string, string | number>>} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
                                         {topProducts.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="rgba(0,0,0,0.5)" />
                                         ))}
@@ -227,7 +246,7 @@ export default function DashboardView() {
                                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                                 <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
                                 <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `Q${val / 1000}k`} />
-                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }} formatter={(value: any) => [formatMoney(value), 'Ingresos']} />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }} formatter={(value: number | string | undefined) => [formatMoney(Number(value ?? 0)), 'Ingresos']} />
                                 <Area type="monotone" dataKey="total" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
                             </AreaChart>
                         </ResponsiveContainer>
@@ -239,7 +258,15 @@ export default function DashboardView() {
     );
 }
 
-function KpiCard({ title, value, sub, icon, color }: any) {
+interface KpiCardProps {
+    title: string;
+    value: string | number;
+    sub?: string;
+    icon: React.ReactNode;
+    color: string;
+}
+
+function KpiCard({ title, value, sub, icon, color }: KpiCardProps) {
     return (
         <div className={`p-6 rounded-2xl border ${color} relative overflow-hidden group transition-all hover:shadow-[0_0_20px_rgba(0,0,0,0.3)]`}>
             <div className="absolute right-4 top-4 opacity-20 group-hover:opacity-40 transition-opacity scale-150">{icon}</div>

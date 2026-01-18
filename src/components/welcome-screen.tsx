@@ -1,8 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useOrganizationId } from '@/lib/contexts/organization-context';
 import { useDatabaseService } from '@/lib/services/supabase/database.service';
-import { useSupabaseClient } from '@/lib/services/supabase/client'; // Still needed for count queries
+// import { useSupabaseClient } from '@/lib/services/supabase/client'; // Unused for now
 import {
   TrendingUp, Users, Package, ArrowRight,
   Zap, Clock, Target, CalendarDays
@@ -19,7 +19,7 @@ interface DashboardStats {
 export default function WelcomeScreen({ userName, onNavigateToKanban }: { userName: string, onNavigateToKanban: () => void }) {
   const organizationId = useOrganizationId();
   const db = useDatabaseService();
-  const supabase = useSupabaseClient();
+  // const supabase = useSupabaseClient(); // Unused for now
   const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, activeDeals: 0, totalClients: 0, productsCount: 0 });
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState('');
@@ -33,25 +33,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
     }
   }, [organizationId, db]);
 
-  useEffect(() => {
-    setCurrentTime(new Date());
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Buenos días');
-    else if (hour < 18) setGreeting('Buenas tardes');
-    else setGreeting('Buenas noches');
-
-    if (organizationId) {
-      fetchStats();
-    }
-
-    return () => clearInterval(timer);
-  }, [organizationId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     if (!organizationId) return;
 
     try {
@@ -83,7 +65,25 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId, db]);
+
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Buenos días');
+    else if (hour < 18) setGreeting('Buenas tardes');
+    else setGreeting('Buenas noches');
+
+    if (organizationId) {
+      fetchStats();
+    }
+
+    return () => clearInterval(timer);
+  }, [organizationId, fetchStats]);
 
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', maximumFractionDigits: 0 }).format(amount);
@@ -254,7 +254,7 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
               <Clock size={12} /> Recordatorio del Sistema
             </p>
             <p className="text-slate-300 italic text-sm leading-relaxed">
-              "El éxito no es el final, el fracaso no es fatal: es el coraje para continuar lo que cuenta. Revisa tus oportunidades en la etapa de 'Negociación', hoy es un buen día para cerrar tratos."
+              &ldquo;El éxito no es el final, el fracaso no es fatal: es el coraje para continuar lo que cuenta. Revisa tus oportunidades en la etapa de &apos;Negociación&apos;, hoy es un buen día para cerrar tratos.&rdquo;
             </p>
           </div>
         </div>
@@ -283,7 +283,16 @@ export default function WelcomeScreen({ userName, onNavigateToKanban }: { userNa
 }
 
 
-function StatCard({ title, value, icon, subtext, trend, delay }: any) {
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  subtext?: string;
+  trend?: string;
+  delay: number;
+}
+
+function StatCard({ title, value, icon, subtext, trend, delay }: StatCardProps) {
   return (
     <div
       className="bg-slate-900/40 border border-slate-800/60 p-5 rounded-2xl hover:bg-slate-900/80 hover:border-slate-700 transition-all group animate-in slide-in-from-bottom-4 duration-500 fill-mode-backwards"
@@ -300,7 +309,15 @@ function StatCard({ title, value, icon, subtext, trend, delay }: any) {
   );
 }
 
-function ActionBtn({ title, desc, icon, onClick, color }: any) {
+interface ActionBtnProps {
+  title: string;
+  desc: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  color: string;
+}
+
+function ActionBtn({ title, desc, icon, onClick, color }: ActionBtnProps) {
   return (
     <div onClick={onClick} className="bg-slate-950 border border-slate-800 p-4 rounded-xl hover:border-kiriko-teal/50 hover:bg-slate-900 transition-all cursor-pointer group/btn shadow-sm hover:shadow-[0_0_15px_rgba(45,212,191,0.1)]">
       <div className="flex justify-between items-start mb-2">
@@ -315,7 +332,14 @@ function ActionBtn({ title, desc, icon, onClick, color }: any) {
   );
 }
 
-function StatusItem({ title, status, color, dotColor }: any) {
+interface StatusItemProps {
+  title: string;
+  status: string;
+  color: string;
+  dotColor: string;
+}
+
+function StatusItem({ title, status, color, dotColor }: StatusItemProps) {
   return (
     <div className="flex items-center gap-4 relative z-10 pl-4">
       <div className={`w-2 h-2 rounded-full ${dotColor} absolute left-[1px] top-2 ring-4 ring-slate-950`}></div>

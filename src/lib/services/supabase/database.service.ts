@@ -66,7 +66,7 @@ export class DatabaseService {
     return data;
   }
 
-  async createClient(client: Omit<Client, 'id' | 'created_at'>): Promise<Client> {
+  async createClient(client: Omit<Client, 'id' | 'created_at' | 'organization_id'>): Promise<Client> {
     this.ensureOrganizationContext();
     const { data, error } = await this.supabase
       .from('clients')
@@ -133,7 +133,7 @@ export class DatabaseService {
     return data;
   }
 
-  async createDeal(deal: Omit<Deal, 'id' | 'created_at'>): Promise<Deal> {
+  async createDeal(deal: Omit<Deal, 'id' | 'created_at' | 'organization_id'>): Promise<Deal> {
     this.ensureOrganizationContext();
     const { data, error } = await this.supabase
       .from('deals')
@@ -320,8 +320,8 @@ export class DatabaseService {
 
   async updateDealItem(id: string, updates: Partial<Omit<DealItem, 'id' | 'organization_id' | 'total_price'>>): Promise<DealItem> {
     this.ensureOrganizationContext();
-    // Exclude total_price as it's a generated/computed column
-    const { total_price, ...updateFields } = updates as any;
+    // total_price is excluded from the type, so we can use updates directly
+    const updateFields = updates;
     const { data, error } = await this.supabase
       .from('deal_items')
       .update(updateFields)

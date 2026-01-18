@@ -4,7 +4,6 @@ import { auth, clerkClient } from '@clerk/nextjs/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 // Create admin client for server-side operations
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -15,7 +14,8 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 // Create regular client for auth verification
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+// const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function getOrganizationSlugFromHost(host: string): string | null {
   if (!host) {
@@ -121,12 +121,13 @@ export async function GET(request: NextRequest) {
         // Try to get email from Clerk if possible, or skip if strict on rate limits
         // For now, returning null for email to avoid N+1 Clerk calls unless necessary
         // Or we could fetch user list from Clerk filtering by IDs
+        const user = Array.isArray(entry.user) ? entry.user[0] : entry.user;
         return {
           id: entry.user_id,
           role: entry.role,
           is_active: entry.is_active,
-          full_name: entry.user?.full_name || null,
-          avatar_url: entry.user?.avatar_url || null,
+          full_name: user?.full_name || null,
+          avatar_url: user?.avatar_url || null,
           created_at: entry.created_at,
           updated_at: entry.updated_at,
           email: null, // Email requires fetching from Clerk
@@ -136,10 +137,11 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({ users: usersWithDetails });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error getting users:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -272,10 +274,11 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating user:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -108,7 +108,10 @@ export function OrganizationProvider({
     }
 
     return (data || [])
-      .map((entry) => entry.organization)
+      .map((entry) => {
+        const org = Array.isArray(entry.organization) ? entry.organization[0] : entry.organization;
+        return org;
+      })
       .filter((org): org is Organization => !!org);
   };
 
@@ -159,7 +162,7 @@ export function useOrganizationId() {
 }
 
 export function useIsOrgAdmin() {
-  const { organization } = useOrganization();
+  // const { organization } = useOrganization(); // Unused for now
   // This will need to check user role from user_profiles
   // For now, return false - will be implemented when we add role checking
   return false;

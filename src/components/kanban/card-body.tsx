@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useCallback } from 'react';
+import Image from 'next/image';
 import { Building, Flag, Paperclip, Package } from 'lucide-react';
 import { formatMoney } from '@/lib/utils';
 import type { CardBodyProps } from './types';
@@ -52,8 +53,10 @@ export const CardBody = memo(function CardBody({
               className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-kiriko-teal font-medium group/client hover:bg-white/5 px-2 py-1 rounded -ml-2 transition-all cursor-pointer z-20 relative"
             >
               {task.client_data.logo_url ? (
-                <img
+                <Image
                   src={task.client_data.logo_url}
+                  width={20}
+                  height={20}
                   className="w-5 h-5 rounded-full object-cover border border-slate-600"
                   alt={task.client_data.name}
                 />
@@ -67,8 +70,10 @@ export const CardBody = memo(function CardBody({
           ) : (
             <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
               {task.client_data.logo_url ? (
-                <img
+                <Image
                   src={task.client_data.logo_url}
+                  width={20}
+                  height={20}
                   className="w-5 h-5 rounded-full object-cover border border-slate-600"
                   alt={task.client_data.name}
                 />

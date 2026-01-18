@@ -2,6 +2,7 @@
 
 import { X, Save, Shield, Camera, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { UserAvatar, useUser, useSession } from "@clerk/nextjs";
 
 interface UserData {
@@ -78,9 +79,10 @@ export function ProfileModal({
       // Update local state and call onSave callback
       onSave({ name, role });
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving profile:', error);
-      setSaveError(error.message || 'Error al guardar el perfil');
+      const errorMessage = error instanceof Error ? error.message : 'Error al guardar el perfil';
+      setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -137,13 +139,14 @@ export function ProfileModal({
       
       // Clear the input to allow selecting the same file again
       e.target.value = '';
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading profile image:', error);
       
       // Provide more specific error messages
-      if (error?.status === 413 || error?.message?.includes('size')) {
+      const errorObj = error as { status?: number; message?: string };
+      if (errorObj?.status === 413 || errorObj?.message?.includes('size')) {
         setUploadError('La imagen es demasiado grande. Por favor selecciona una imagen menor a 5MB.');
-      } else if (error?.status === 400 || error?.message?.includes('format')) {
+      } else if (errorObj?.status === 400 || errorObj?.message?.includes('format')) {
         setUploadError('Formato de imagen no válido. Por favor selecciona JPG, PNG o GIF.');
       } else {
         setUploadError('Error al subir la imagen. Por favor intenta de nuevo.');
@@ -167,9 +170,11 @@ export function ProfileModal({
         <div className="flex justify-between items-center p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-24 opacity-90">
-              <img
+              <Image
                 src="/logo-kiriko.png"
                 alt="Logo"
+                width={96}
+                height={96}
                 className="w-full h-auto"
               />
             </div>
@@ -193,19 +198,23 @@ export function ProfileModal({
                 ) : (
                   <div className="w-full h-full rounded-full overflow-hidden relative">
                     {localImageUrl ? (
-                      <img
+                      <Image
                         key={`preview-${imageTimestamp}`}
                         src={localImageUrl}
                         alt="Profile"
+                        width={96}
+                        height={96}
                         className="w-full h-full object-cover rounded-full"
                       />
                     ) : user?.imageUrl ? (
-                      <img
+                      <Image
                         key={`${user.imageUrl}-${imageTimestamp}`}
                         src={`${user.imageUrl}?t=${imageTimestamp}`}
                         alt="Profile"
+                        width={96}
+                        height={96}
                         className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
+                        onError={() => {
                           // Fallback to UserAvatar if image fails to load
                           console.warn('Failed to load profile image, using fallback');
                         }}

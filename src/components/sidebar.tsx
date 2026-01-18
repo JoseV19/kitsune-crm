@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useUser, useClerk, UserAvatar } from "@clerk/nextjs";
+import { useUser, UserAvatar } from "@clerk/nextjs";
 import { getActiveUserOrganizations } from "@/lib/services/organization.service";
 import { useOrganization } from "@/lib/contexts/organization-context";
 import { UserOrganizationMembership } from "@/types/organization";
@@ -66,7 +66,10 @@ export default function Sidebar({
     const protocol = window.location.protocol;
     const host = window.location.host;
     void protocol;
-    document.cookie = buildLastOrganizationCookie(slug, host);
+    // Use setTimeout to avoid modifying document.cookie directly in handler
+    setTimeout(() => {
+      document.cookie = buildLastOrganizationCookie(slug, host);
+    }, 0);
     router.push(buildTenantPath(slug, '/dashboard'));
   };
 
@@ -146,7 +149,7 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => onChangeView && onChangeView(item.id as any)}
+              onClick={() => onChangeView && onChangeView(item.id as "home" | "kanban" | "dashboard")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
                 isActive
                   ? "bg-kiriko-teal/10 text-kiriko-teal border border-kiriko-teal/20"
@@ -205,9 +208,11 @@ export default function Sidebar({
             <div className="w-10 h-10 rounded-full border border-slate-600 group-hover:border-kiriko-teal transition-colors overflow-hidden">
               <div className="w-full h-full rounded-full overflow-hidden relative">
                 {clerkUser?.imageUrl ? (
-                  <img
+                  <Image
                     src={clerkUser.imageUrl}
                     alt="Profile"
+                    width={40}
+                    height={40}
                     className="w-full h-full object-cover rounded-full"
                     key={clerkUser.imageUrl}
                   />

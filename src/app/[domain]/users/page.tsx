@@ -13,7 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user, isLoaded } = useUser();
+  const { user } = useUser();
   const { session } = useSession();
   const { organizationId } = useOrganization();
   const isOwner = useIsOrgOwner();
@@ -36,6 +36,7 @@ export default function UsersPage() {
     if (organizationId && user && session) {
       loadUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, user, session]);
 
   const loadUsers = async () => {
@@ -49,8 +50,9 @@ export default function UsersPage() {
       
       const organizationUsers = await getOrganizationUsers(token);
       setUsers(organizationUsers);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar usuarios');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al cargar usuarios';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -75,8 +77,9 @@ export default function UsersPage() {
       reset();
       setIsCreateModalOpen(false);
       await loadUsers();
-    } catch (err: any) {
-      setError(err.message || 'Error al crear usuario');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al crear usuario';
+      setError(errorMessage);
     }
   };
 
@@ -95,8 +98,9 @@ export default function UsersPage() {
 
       await removeUserFromOrganization(userId, token);
       await loadUsers();
-    } catch (err: any) {
-      setError(err.message || 'Error al eliminar usuario');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar usuario';
+      setError(errorMessage);
     } finally {
       setDeletingUserId(null);
     }

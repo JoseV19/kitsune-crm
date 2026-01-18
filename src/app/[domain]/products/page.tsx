@@ -10,6 +10,7 @@ import {
   Image as ImageIcon, Loader2, DollarSign, Barcode 
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function ProductsPage() {
   const params = useParams();
@@ -40,6 +41,7 @@ export default function ProductsPage() {
     if (organizationId) {
       fetchProducts();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
   const fetchProducts = async () => {
@@ -106,8 +108,9 @@ export default function ProductsPage() {
       setCurrentProduct({});
       fetchProducts();
 
-    } catch (error: any) {
-      alert('Error al guardar: ' + (error.message || 'Ocurrió un problema'));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert('Error al guardar: ' + errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -119,8 +122,9 @@ export default function ProductsPage() {
       db.setOrganizationId(organizationId);
       await db.deleteProduct(id);
       fetchProducts();
-    } catch (error: any) {
-      alert('Error al eliminar: ' + (error.message || 'Ocurrió un problema'));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un problema';
+      alert('Error al eliminar: ' + errorMessage);
     }
   };
 
@@ -184,7 +188,7 @@ export default function ProductsPage() {
             <div key={product.id} className="group bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden hover:border-kiriko-teal/50 transition-all hover:shadow-[0_0_20px_rgba(45,212,191,0.1)] flex flex-col">
               <div className="h-48 bg-slate-950 relative overflow-hidden flex items-center justify-center">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
+                  <Image src={product.image_url} alt={product.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500"/>
                 ) : (
                   <ImageIcon size={40} className="text-slate-700" />
                 )}

@@ -50,10 +50,11 @@ export async function POST(request: NextRequest) {
       hasProfile: (memberships || []).length > 0,
       userId: user.id,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error checking user:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
         hostname: "img.clerk.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "oklagzkocbhetscbzgmu.supabase.co",
+        pathname: "/**",
+      },
     ],
   },
 };
