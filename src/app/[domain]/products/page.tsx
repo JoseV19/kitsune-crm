@@ -79,13 +79,13 @@ export default function ProductsPage() {
         finalImageUrl = await storage.uploadProductImage(imageFile, tempId);
       }
 
-      const productData = {
+      const productData: Omit<Product, 'id' | 'created_at' | 'organization_id'> = {
         name: currentProduct.name!,
         description: currentProduct.description || null,
         sku: currentProduct.sku || null,
         unit_price: currentProduct.unit_price!,
         image_url: finalImageUrl || null,
-      } as Omit<Product, 'id' | 'created_at' | 'organization_id'>;
+      };
 
       if (currentProduct.id) {
         await db.updateProduct(currentProduct.id, productData);

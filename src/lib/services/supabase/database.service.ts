@@ -187,7 +187,7 @@ export class DatabaseService {
     return data || [];
   }
 
-  async createProduct(product: Omit<Product, 'id' | 'created_at'>): Promise<Product> {
+  async createProduct(product: Omit<Product, 'id' | 'created_at' | 'organization_id'>): Promise<Product> {
     this.ensureOrganizationContext();
     const { data, error } = await this.supabase
       .from('products')
